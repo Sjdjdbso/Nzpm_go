@@ -41,6 +41,23 @@ func (l *MirrorLeechListener) ProcessCompletedDownload(filePath string, totalSiz
 	t.CompletedSize = totalSize
 	t.Progress = 100.0
 
+	// Sanity Check: Tolak jika yang terunduh adalah halaman error HTML Google Drive
+	if fi, err := os.Stat(filePath); err == nil && fi.Size() < 50000 {
+		contentSample, _ := os.ReadFile(filePath)
+		sampleStr := string(contentSample)
+		if strings.Contains(sampleStr, "Google Drive - Quota exceeded") || strings.Contains(sampleStr, "Too many users have viewed or downloaded this file recently") {
+			errMsg := "❌ <b>Unduhan Dibatalkan:</b> File yang terunduh adalah halaman error <i>Google Drive - Quota Exceeded</i>. Kuota download publik file ini telah habis dibatasi oleh Google."
+			if l.StatusMsg != nil {
+				l.Bot.Edit(l.StatusMsg, errMsg, &tele.SendOptions{ParseMode: tele.ModeHTML})
+			} else {
+				l.Bot.Send(l.Recipient, errMsg, &tele.SendOptions{ParseMode: tele.ModeHTML})
+			}
+			ext_utils.CleanPath(filePath)
+			ext_utils.TaskMgr.Remove(l.GID)
+			return
+		}
+	}
+
 	if l.IsExtract && ext_utils.IsArchive(filePath) {
 		if l.StatusMsg != nil {
 			l.Bot.Edit(l.StatusMsg, "📦 <b>Mengekstrak arsip...</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})

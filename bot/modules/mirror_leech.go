@@ -302,7 +302,10 @@ func InitMirrorLeech(b *tele.Bot) {
 
 		// 3. Direct Link Generator (GDrive, Mediafire, Pixeldrain, Solidfiles, Dropbox, dll)
 		resolvedURL, resolvedName, ddlErr := download_utils.DirectLinkGenerator(args.Link)
-		if ddlErr == nil && resolvedURL != args.Link {
+		if ddlErr != nil {
+			return c.Send(fmt.Sprintf("❌ <b>Gagal Memproses Link:</b> %v", ddlErr), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		if resolvedURL != args.Link {
 			args.Link = resolvedURL
 			if args.CustomName == "" && resolvedName != "" {
 				args.CustomName = resolvedName

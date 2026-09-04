@@ -16,3 +16,8 @@ downloads/
 # Logs
 log.txt
 *.log
+
+# User settings & Thumbnails
+users_settings.json
+thumbnails/
+scratch/
