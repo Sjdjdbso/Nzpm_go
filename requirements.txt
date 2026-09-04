@@ -1,0 +1,19 @@
+# ==============================================================================
+# CATATAN DEPENDENSI:
+# ==============================================================================
+# Bot ini dibangun dengan Golang (bukan Python), sehingga manajemen dependensi
+# package dikelola secara resmi melalui file:
+#   - go.mod  (daftar modul & versi)
+#   - go.sum  (checksum integritas)
+#
+# Dependensi Package Go yang digunakan:
+#   - gopkg.in/telebot.v3      (Telegram Bot Framework)
+#   - github.com/joho/godotenv (Pembaca file .env / config.env)
+#
+# Dependensi Binary / Tool Sistem (wajib terinstall di VPS / Docker):
+#   - aria2   (Engine unduhan multi-thread & torrent)
+#   - rclone  (Engine upload ke cloud storage)
+#   - p7zip   (Tool kompresi/ekstraksi zip, rar, 7z)
+#   - curl    (Pengambil tracker torrent)
+#   - bash    (Runner skrip start.sh & aria.sh)
+# ==============================================================================
