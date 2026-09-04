@@ -46,6 +46,12 @@ func main() {
 	modules.InitMirrorLeech(b)
 	modules.InitYtDlp(b)
 	modules.InitShell(b)
+	modules.InitSpeedtest(b)
+	modules.InitMediaInfo(b)
+	modules.InitUsersSettings(b)
+	modules.InitBroadcast(b)
+	modules.InitRestart(b)
+	modules.InitBotSettings(b)
 
 	log.Printf("[INFO] Bot @%s aktif dan siap menerima perintah!\n", b.Me.Username)
 	b.Start()

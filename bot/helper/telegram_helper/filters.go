@@ -18,3 +18,13 @@ func AuthGuard(next tele.HandlerFunc) tele.HandlerFunc {
 		return next(c)
 	}
 }
+
+func SudoGuard(next tele.HandlerFunc) tele.HandlerFunc {
+	return func(c tele.Context) error {
+		if !bot.ConfigDict.IsOwnerOrSudo(c.Sender().ID) {
+			return c.Send("⚠️ <i>Perintah ini hanya dapat dijalankan oleh Bot Owner atau Sudo user!</i>",
+				&tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		return next(c)
+	}
+}

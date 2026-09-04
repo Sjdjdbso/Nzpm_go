@@ -3,6 +3,7 @@ package listeners
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -24,6 +25,67 @@ type MirrorLeechListener struct {
 	IsZip      bool
 	IsExtract  bool
 	Markup     *tele.ReplyMarkup
+}
+
+func (l *MirrorLeechListener) ProcessCompletedDownload(filePath string, totalSize int64, t *ext_utils.Task) {
+	fileName := filepath.Base(filePath)
+	if totalSize <= 0 {
+		if fi, err := os.Stat(filePath); err == nil {
+			totalSize = fi.Size()
+		}
+	}
+	t.TotalSize = totalSize
+	t.CompletedSize = totalSize
+	t.Progress = 100.0
+
+	if l.IsExtract && ext_utils.IsArchive(filePath) {
+		if l.StatusMsg != nil {
+			l.Bot.Edit(l.StatusMsg, "📦 <b>Mengekstrak arsip...</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		if outDir, err := ext_utils.ExtractArchive(filePath); err == nil {
+			filePath = outDir
+			fileName = filepath.Base(filePath)
+		}
+	}
+
+	if l.IsZip {
+		if l.StatusMsg != nil {
+			l.Bot.Edit(l.StatusMsg, "🗜 <b>Mengompres ke ZIP...</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		if zipPath, err := ext_utils.CompressToZip(filePath); err == nil {
+			filePath = zipPath
+			fileName = filepath.Base(filePath)
+		}
+	}
+
+	if l.IsLeech {
+		t.Status = "Leeching"
+		if l.StatusMsg != nil {
+			l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengirim ke Telegram...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		if err := upload_utils.TelegramUpload(l.Bot, l.Recipient, filePath, t.User, t.UserID); err != nil {
+			l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Leech Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		} else {
+			l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Leech", "", t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+	} else {
+		t.Status = "Uploading"
+		if l.StatusMsg != nil {
+			l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		if err := upload_utils.RcloneTransfer(filePath, l.RcloneDest, nil); err != nil {
+			l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		} else {
+			dest := l.RcloneDest
+			if dest == "" {
+				dest = "Disimpan di server"
+			}
+			l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Mirror", dest, t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+	}
+
+	ext_utils.CleanPath(filePath)
+	ext_utils.TaskMgr.Remove(l.GID)
 }
 
 func (l *MirrorLeechListener) Start() {
@@ -85,57 +147,8 @@ func (l *MirrorLeechListener) Start() {
 		// Selesai Download
 		if st.Status == "complete" {
 			log.Printf("[INFO] Aria2 GID %s selesai: %s", activeGID, filePath)
-			t.Progress = 100.0
-
-			if l.IsExtract && ext_utils.IsArchive(filePath) {
-				if l.StatusMsg != nil {
-					l.Bot.Edit(l.StatusMsg, "📦 <b>Mengekstrak arsip...</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
-				}
-				if outDir, err := ext_utils.ExtractArchive(filePath); err == nil {
-					filePath = outDir
-					fileName = filepath.Base(filePath)
-				}
-			}
-
-			if l.IsZip {
-				if l.StatusMsg != nil {
-					l.Bot.Edit(l.StatusMsg, "🗜 <b>Mengompres ke ZIP...</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
-				}
-				if zipPath, err := ext_utils.CompressToZip(filePath); err == nil {
-					filePath = zipPath
-					fileName = filepath.Base(filePath)
-				}
-			}
-
-			if l.IsLeech {
-				t.Status = "Leeching"
-				if l.StatusMsg != nil {
-					l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengirim ke Telegram...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				}
-				if err := upload_utils.TelegramUpload(l.Bot, l.Recipient, filePath, t.User); err != nil {
-					l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Leech Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				} else {
-					l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Leech", "", t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				}
-			} else {
-				t.Status = "Uploading"
-				if l.StatusMsg != nil {
-					l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				}
-				if err := upload_utils.RcloneTransfer(filePath, l.RcloneDest, nil); err != nil {
-					l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				} else {
-					dest := l.RcloneDest
-					if dest == "" {
-						dest = "Disimpan di server"
-					}
-					l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Mirror", dest, t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				}
-			}
-
-			ext_utils.CleanPath(filePath)
+			l.ProcessCompletedDownload(filePath, totalSize, t)
 			ext_utils.TaskMgr.Remove(activeGID)
-			ext_utils.TaskMgr.Remove(l.GID)
 			return
 		}
 

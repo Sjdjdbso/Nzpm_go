@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go-mirror-bot/bot"
 	"go-mirror-bot/bot/helper/ext_utils"
@@ -37,21 +38,44 @@ func InitYtDlp(b *tele.Bot) {
 			modeStr = "YT-DLP Leech"
 		}
 
-		statusMsg, _ := c.Bot().Send(c.Recipient(), fmt.Sprintf("<b><i>Task Started</i></b>\n┠ <b>Mode:</b> %s\n┖ <b>By:</b> @%s\n\n🚀 <i>Mengunduh video via yt-dlp...</i>", modeStr, sender), &tele.SendOptions{ParseMode: tele.ModeHTML})
+		gid := fmt.Sprintf("yt_%d", time.Now().UnixNano()%1000000)
+		t := &ext_utils.Task{
+			GID:       gid,
+			Name:      "Mengambil info YT-DLP...",
+			Status:    "Downloading",
+			Mode:      modeStr,
+			Engine:    "yt-dlp",
+			User:      "@" + sender,
+			UserID:    c.Sender().ID,
+			StartTime: time.Now(),
+		}
+		ext_utils.TaskMgr.Add(t)
+
+		markup := &tele.ReplyMarkup{}
+		btnCancel := markup.Data("🛑 Batalkan", "cancel_"+gid)
+		markup.Inline(markup.Row(btnCancel))
+
+		header := fmt.Sprintf("<b><i>Task Started</i></b>\n┠ <b>Mode:</b> %s\n┖ <b>By:</b> @%s\n\n➲ <b>GID:</b> <code>%s</code>\n🚀 <i>Mengunduh video via yt-dlp...</i>", modeStr, sender, gid)
+		statusMsg, _ := c.Bot().Send(c.Recipient(), header, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
 
 		go func() {
 			filePath, err := download_utils.YtDlpDownload(args.Link, bot.ConfigDict.DownloadDir, args.CustomName, nil)
 			if err != nil {
 				c.Bot().Edit(statusMsg, fmt.Sprintf("❌ <b>YT-DLP Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				ext_utils.TaskMgr.Remove(gid)
 				return
 			}
 
 			fileName := filepath.Base(filePath)
+			t.Name = fileName
 			fi, _ := os.Stat(filePath)
 			var size int64
 			if fi != nil {
 				size = fi.Size()
 			}
+			t.TotalSize = size
+			t.CompletedSize = size
+			t.Progress = 100.0
 
 			if isZip {
 				c.Bot().Edit(statusMsg, "🗜 <b>Mengompres ke ZIP...</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
@@ -62,13 +86,15 @@ func InitYtDlp(b *tele.Bot) {
 			}
 
 			if isLeech {
+				t.Status = "Leeching"
 				c.Bot().Edit(statusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengirim ke Telegram...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				if err := upload_utils.TelegramUpload(b, c.Recipient(), filePath, "@"+sender); err != nil {
+				if err := upload_utils.TelegramUpload(b, c.Recipient(), filePath, "@"+sender, c.Sender().ID); err != nil {
 					c.Bot().Send(c.Recipient(), fmt.Sprintf("❌ <b>Leech Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
 				} else {
 					c.Bot().Send(c.Recipient(), themes.FormatCompleteMsg(fileName, size, "Leech", "", "@"+sender), &tele.SendOptions{ParseMode: tele.ModeHTML})
 				}
 			} else {
+				t.Status = "Uploading"
 				c.Bot().Edit(statusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
 				dest := bot.ConfigDict.RclonePath
 				if args.CustomRemote != "" {
@@ -84,6 +110,7 @@ func InitYtDlp(b *tele.Bot) {
 				}
 			}
 			ext_utils.CleanPath(filePath)
+			ext_utils.TaskMgr.Remove(gid)
 		}()
 		return nil
 	}
