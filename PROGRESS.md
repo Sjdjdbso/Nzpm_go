@@ -28,47 +28,45 @@ Dokumentasi pelacakan perkembangan implementasi fitur bot mirror berbasis Golang
 
 ---
 
-### ⏳ Fase 2: Keamanan & Autorisasi Chat (Berikutnya)
-- [ ] Validasi `OWNER_ID` dan daftar `SUDO_USERS`.
-- [ ] Dukungan `AUTHORIZED_CHATS` (membatasi penggunaan bot hanya di grup atau user tertentu).
-- [ ] Perintah admin `/authorize`, `/unauthorize`, `/users`.
-- [ ] Filter pesan agar bot tidak merespon pengguna ilegal.
+### ✅ Fase 2: Keamanan & Autorisasi Chat (Selesai)
+- [x] Validasi `OWNER_ID` dan daftar `SUDO_USERS`.
+- [x] Dukungan `AUTHORIZED_CHATS` dari environment.
+- [x] Perintah dinamis admin: `/auth <id>`, `/unauth <id>`, `/authlist`.
+- [x] Middleware `authGuard` untuk memproteksi perintah unduhan & status dari pengguna liar.
 
 ---
 
-### ⏳ Fase 3: Fleksibilitas Download & Argument Parser
-- [ ] Dukungan **Magnet Link** dan **Torrent File** (`.torrent` upload ke bot) via Aria2.
-- [ ] Argument parser mirip wzv3:
+### ✅ Fase 3: Fleksibilitas Download & Argument Parser (Selesai)
+- [x] Dukungan **Magnet Link** (`magnet:?xt=...`) otomatis via Aria2.
+- [x] Dukungan pengiriman file **`.torrent`** langsung ke Telegram bot.
+- [x] Argument parser mirip wzv3:
   - Custom filename: `/mirror <url> -n nama_baru.zip` atau `/mirror <url> | nama_baru.zip`.
   - Custom Rclone destination: `/mirror <url> -rc remote:path`.
-- [ ] Kompresi & Dekompresi Otomatis:
-  - Flag `-z` (Zip folder/file sebelum upload).
-  - Flag `-e` (Extract archive `.zip`, `.rar`, `.7z`, `.tar` setelah download).
+- [x] Deteksi tautan via reply pesan.
 
 ---
 
-### ⏳ Fase 4: UX & Dynamic Status Message
-- [ ] Auto-refreshing status message (mengedit pesan progress setiap interval 3-5 detik secara halus tanpa spam API Telegram).
-- [ ] Tombol inline keyboard `[ 🛑 Batalkan ]` langsung di pesan status tiap tugas.
-- [ ] Format pesan selesai yang lebih rapi (Kecepatan rata-rata, waktu proses, tautan cloud jika tersedia).
+### ✅ Fase 4: UX & Dynamic Live Status Message (Selesai)
+- [x] **Live Message Editing**: Pesan progress terupdate secara otomatis dan halus tiap 3 detik selama pengunduhan.
+- [x] **Tombol Inline Keyboard**: Tombol `[ 🛑 Batalkan ]` interaktif langsung menempel pada pesan live status.
+- [x] Proteksi pembatalan: hanya Owner, Sudo, atau pengunggah tugas yang bisa membatalkan proses.
 
 ---
 
-### ⏳ Fase 5: Telegram Leech Engine (`/leech`)
-- [ ] Perintah `/leech <url>` untuk mengirim hasil unduhan langsung ke Telegram chat (bukan ke cloud).
-- [ ] Support custom thumbnail & caption.
-- [ ] Split file otomatis jika melebihi batas upload Telegram Bot API.
-
----
-
-### ⏳ Fase 6: Rclone Cloud Multi-Config & Sync
-- [ ] Integrasi penuh file `rclone.conf`.
-- [ ] Command `/clone <remote1:path> <remote2:path>`.
-- [ ] Command `/list <query>` untuk mencari file di Google Drive / Cloud.
+### ⏳ Fase 5: Kompresi, Dekompresi, & Leech Engine (Berikutnya)
+- [ ] Flag kompresi `-z` (Zip otomatis sebelum upload).
+- [ ] Flag dekompresi `-e` (Extract `.zip`, `.rar`, `.7z` otomatis setelah download).
+- [ ] Perintah `/leech <url>` untuk mengirim hasil unduhan langsung ke obrolan Telegram.
 
 ---
 
 ## 📝 Log Perubahan (Changelog)
+
+### [2026-09-04] - Versi 1.2.0 (Security, Magnets, Torrents & Live Progress)
+- Menambahkan sistem autorisasi dinamis (`/auth`, `/unauth`, `/authlist`).
+- Menambahkan parser argumen (`-n`, `|`, `-rc`).
+- Menambahkan integrasi unduhan torrent file & magnet link.
+- Menambahkan auto-updating message dengan tombol inline cancel interaktif.
 
 ### [2026-09-04] - Versi 1.0.0 (Initial Working Release)
 - Membangun seluruh arsitektur bot Go menggantikan dependensi Python.

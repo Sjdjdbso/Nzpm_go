@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -65,6 +66,7 @@ type AriaStatus struct {
 	DownloadSpeed   string     `json:"downloadSpeed"`
 	Files           []FileItem `json:"files"`
 	ErrorMessage    string     `json:"errorMessage"`
+	FollowedBy      []string   `json:"followedBy"` // untuk transisi metadata magnet ke download utama
 }
 
 func (c *AriaClient) Call(method string, params []interface{}, result interface{}) error {
@@ -130,10 +132,36 @@ func (c *AriaClient) AddURI(uri string, dir string, filename string) (string, er
 	return gid, err
 }
 
+// AddTorrent menambahkan file .torrent dalam bentuk byte array (base64)
+func (c *AriaClient) AddTorrent(torrentBytes []byte, dir string, filename string) (string, error) {
+	b64Torrent := base64.StdEncoding.EncodeToString(torrentBytes)
+	options := map[string]interface{}{}
+	if dir != "" {
+		absDir, err := filepath.Abs(dir)
+		if err == nil {
+			dir = absDir
+		}
+		options["dir"] = dir
+	}
+	if filename != "" {
+		options["out"] = filename
+	}
+
+	params := []interface{}{
+		b64Torrent,
+		[]string{},
+		options,
+	}
+
+	var gid string
+	err := c.Call("aria2.addTorrent", params, &gid)
+	return gid, err
+}
+
 func (c *AriaClient) TellStatus(gid string) (*AriaStatus, error) {
 	params := []interface{}{
 		gid,
-		[]string{"gid", "status", "totalLength", "completedLength", "downloadSpeed", "files", "errorMessage"},
+		[]string{"gid", "status", "totalLength", "completedLength", "downloadSpeed", "files", "errorMessage", "followedBy"},
 	}
 
 	var status AriaStatus
