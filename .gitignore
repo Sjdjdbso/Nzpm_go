@@ -1,0 +1,18 @@
+# Binaries
+go-mirror-bot
+*.exe
+
+# Configuration
+config.env
+.env
+accounts/
+token.pickle
+
+# Temporary downloads
+downloads/
+*.torrent
+*.aria2
+
+# Logs
+log.txt
+*.log
