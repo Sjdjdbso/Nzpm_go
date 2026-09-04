@@ -12,15 +12,20 @@ import (
 )
 
 type Config struct {
-	BotToken        string
-	OwnerID         int64
-	AuthorizedChats map[int64]bool
-	SudoUsers       map[int64]bool
-	DownloadDir     string
-	RclonePath      string
-	CmdSuffix       string
-	Port            string
-	mu              sync.RWMutex
+	BotToken          string
+	TelegramAPI       int64  // TELEGRAM_API / API_ID
+	TelegramHash      string // TELEGRAM_HASH / API_HASH
+	UserSessionString string // USER_SESSION_STRING
+	OwnerID           int64
+	AuthorizedChats   map[int64]bool
+	SudoUsers         map[int64]bool
+	DownloadDir       string
+	RclonePath        string
+	DefaultUpload     string // DEFAULT_UPLOAD ("rc", "ddl", "pixeldrain", "gd")
+	PixeldrainAPI     string // PIXELDRAIN_API
+	CmdSuffix         string
+	Port              string
+	mu                sync.RWMutex
 }
 
 var ConfigDict Config
@@ -37,6 +42,20 @@ func LoadConfig() {
 
 	ownerID, _ := strconv.ParseInt(os.Getenv("OWNER_ID"), 10, 64)
 
+	// Telegram API ID & Hash (Persis wzv3 / wzgram)
+	apiIDStr := os.Getenv("TELEGRAM_API")
+	if apiIDStr == "" {
+		apiIDStr = os.Getenv("API_ID")
+	}
+	telegramAPI, _ := strconv.ParseInt(apiIDStr, 10, 64)
+
+	telegramHash := os.Getenv("TELEGRAM_HASH")
+	if telegramHash == "" {
+		telegramHash = os.Getenv("API_HASH")
+	}
+
+	userSession := os.Getenv("USER_SESSION_STRING")
+
 	downloadDir := os.Getenv("DOWNLOAD_DIR")
 	if downloadDir == "" {
 		downloadDir = "downloads"
@@ -51,15 +70,27 @@ func LoadConfig() {
 		port = "8080"
 	}
 
+	defaultUpload := strings.ToLower(os.Getenv("DEFAULT_UPLOAD"))
+	if defaultUpload == "" {
+		defaultUpload = "rc"
+	}
+
+	pixeldrainAPI := os.Getenv("PIXELDRAIN_API")
+
 	ConfigDict = Config{
-		BotToken:        botToken,
-		OwnerID:         ownerID,
-		AuthorizedChats: make(map[int64]bool),
-		SudoUsers:       make(map[int64]bool),
-		DownloadDir:     downloadDir,
-		RclonePath:      os.Getenv("RCLONE_PATH"),
-		CmdSuffix:       os.Getenv("CMD_SUFFIX"),
-		Port:            port,
+		BotToken:          botToken,
+		TelegramAPI:       telegramAPI,
+		TelegramHash:      telegramHash,
+		UserSessionString: userSession,
+		OwnerID:           ownerID,
+		AuthorizedChats:   make(map[int64]bool),
+		SudoUsers:         make(map[int64]bool),
+		DownloadDir:       downloadDir,
+		RclonePath:        os.Getenv("RCLONE_PATH"),
+		DefaultUpload:     defaultUpload,
+		PixeldrainAPI:     pixeldrainAPI,
+		CmdSuffix:         os.Getenv("CMD_SUFFIX"),
+		Port:              port,
 	}
 
 	// Parse AUTHORIZED_CHATS
@@ -81,7 +112,8 @@ func LoadConfig() {
 	}
 
 	os.MkdirAll(downloadDir, 0755)
-	log.Printf("[INFO] Config berhasil dimuat. OwnerID: %d, DownloadDir: %s, Port: %s", ownerID, downloadDir, port)
+	log.Printf("[INFO] Config berhasil dimuat. OwnerID: %d, TelegramAPI: %d, DefaultUpload: %s, Port: %s",
+		ownerID, telegramAPI, defaultUpload, port)
 }
 
 func (c *Config) IsAuthorized(userID, chatID int64) bool {

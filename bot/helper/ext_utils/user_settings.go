@@ -16,6 +16,7 @@ type UserConfig struct {
 	LeechPrefix   string `json:"leech_prefix"`
 	LeechSuffix   string `json:"leech_suffix"`
 	HasThumbnail  bool   `json:"has_thumbnail"`
+	PixeldrainAPI string `json:"pixeldrain_api"`
 }
 
 type UserSettingsStore struct {
@@ -37,7 +38,7 @@ func (s *UserSettingsStore) load() {
 	s.Lock()
 	defer s.Unlock()
 
-	os.MkdirAll("thumbnails", 0755)
+	_ = os.MkdirAll("thumbnails", 0755)
 
 	data, err := os.ReadFile(s.filePath)
 	if err != nil {
@@ -64,7 +65,6 @@ func (s *UserSettingsStore) Get(userID int64) *UserConfig {
 	defer s.RUnlock()
 
 	if u, ok := s.Users[userID]; ok {
-		// Verify thumbnail exists on disk
 		thumbPath := filepath.Join("thumbnails", fmt.Sprintf("%d.jpg", userID))
 		if _, err := os.Stat(thumbPath); err == nil {
 			u.HasThumbnail = true
@@ -122,6 +122,19 @@ func (s *UserSettingsStore) SetSuffix(userID int64, suffix string) {
 		s.Users[userID] = u
 	}
 	u.LeechSuffix = suffix
+	s.save()
+}
+
+func (s *UserSettingsStore) SetPixeldrainAPI(userID int64, apiKey string) {
+	s.Lock()
+	defer s.Unlock()
+
+	u, ok := s.Users[userID]
+	if !ok {
+		u = &UserConfig{UserID: userID}
+		s.Users[userID] = u
+	}
+	u.PixeldrainAPI = apiKey
 	s.save()
 }
 

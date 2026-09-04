@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go-mirror-bot/bot"
 	"go-mirror-bot/bot/helper/ext_utils"
 	"go-mirror-bot/bot/helper/mirror_utils/download_utils"
 	"go-mirror-bot/bot/helper/mirror_utils/upload_utils"
+	"go-mirror-bot/bot/helper/mirror_utils/upload_utils/ddlserver"
 	"go-mirror-bot/bot/helper/telegram_helper"
 	"go-mirror-bot/bot/helper/themes"
 
@@ -95,18 +97,47 @@ func InitYtDlp(b *tele.Bot) {
 				}
 			} else {
 				t.Status = "Uploading"
-				c.Bot().Edit(statusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				c.Bot().Edit(statusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
 				dest := bot.ConfigDict.RclonePath
 				if args.CustomRemote != "" {
 					dest = args.CustomRemote
 				}
-				if err := upload_utils.RcloneTransfer(filePath, dest, nil); err != nil {
-					c.Bot().Send(c.Recipient(), fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
-				} else {
-					if dest == "" {
-						dest = "Disimpan di server"
+				destLower := strings.ToLower(dest)
+				isDDL := destLower == "ddl" || destLower == "pixeldrain" || (dest == "" && (bot.ConfigDict.DefaultUpload == "ddl" || bot.ConfigDict.DefaultUpload == "pixeldrain"))
+
+				if isDDL {
+					apiKey := bot.ConfigDict.PixeldrainAPI
+					if uCfg := ext_utils.UserStore.Get(c.Sender().ID); uCfg != nil && uCfg.PixeldrainAPI != "" {
+						apiKey = uCfg.PixeldrainAPI
 					}
-					c.Bot().Send(c.Recipient(), themes.FormatCompleteMsg(fileName, size, "Mirror", dest, "@"+sender), &tele.SendOptions{ParseMode: tele.ModeHTML})
+					pd := ddlserver.NewPixeldrain(apiKey)
+					pdLink, err := pd.Upload(filePath)
+					if err != nil {
+						c.Bot().Send(c.Recipient(), fmt.Sprintf("❌ <b>Pixeldrain Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+					} else {
+						completeText := fmt.Sprintf(
+							"<b><i>YT-DLP Mirror DDL Selesai!</i></b>\n\n"+
+								"➲ <b>File:</b> <code>%s</code>\n"+
+								"┠ <b>Size:</b> <code>%s</code>\n"+
+								"┠ <b>Server:</b> <code>Pixeldrain DDL</code>\n"+
+								"┠ <b>Link:</b> <a href=\"%s\">%s</a>\n"+
+								"┖ <b>By:</b> @%s",
+							fileName, ext_utils.FormatBytes(size), pdLink, pdLink, sender,
+						)
+						markup := &tele.ReplyMarkup{}
+						btnURL := markup.URL("🔗 Unduh Pixeldrain", pdLink)
+						markup.Inline(markup.Row(btnURL))
+						c.Bot().Send(c.Recipient(), completeText, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
+					}
+				} else {
+					if err := upload_utils.RcloneTransfer(filePath, dest, nil); err != nil {
+						c.Bot().Send(c.Recipient(), fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+					} else {
+						if dest == "" {
+							dest = "Disimpan di server"
+						}
+						c.Bot().Send(c.Recipient(), themes.FormatCompleteMsg(fileName, size, "Mirror", dest, "@"+sender), &tele.SendOptions{ParseMode: tele.ModeHTML})
+					}
 				}
 			}
 			ext_utils.CleanPath(filePath)

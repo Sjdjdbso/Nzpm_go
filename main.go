@@ -6,6 +6,7 @@ import (
 
 	"go-mirror-bot/bot"
 	"go-mirror-bot/bot/helper/mirror_utils/download_utils"
+	"go-mirror-bot/bot/helper/telegram_helper"
 	"go-mirror-bot/bot/modules"
 
 	tele "gopkg.in/telebot.v3"
@@ -36,6 +37,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("[FATAL] Gagal membuat client bot: %v", err)
 	}
+	telegram_helper.LogWZGramStatus()
 
 	// 4. Daftarkan Semua Modul (bot/modules/)
 	modules.InitStats(b)

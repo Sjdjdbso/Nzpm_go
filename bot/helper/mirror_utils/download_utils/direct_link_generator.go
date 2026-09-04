@@ -61,10 +61,14 @@ func DirectLinkGenerator(rawURL string) (string, string, error) {
 		}
 	}
 
-	// Pixeldrain
+	// Pixeldrain (File /u/ & List /l/)
 	if strings.Contains(host, "pixeldrain.com") {
-		re := regexp.MustCompile(`pixeldrain\.com/u/([a-zA-Z0-9]+)`)
-		if m := re.FindStringSubmatch(rawURL); len(m) > 1 {
+		reList := regexp.MustCompile(`pixeldrain\.com/l/([a-zA-Z0-9]+)`)
+		if m := reList.FindStringSubmatch(rawURL); len(m) > 1 {
+			return fmt.Sprintf("https://pixeldrain.com/api/list/%s/zip", m[1]), fmt.Sprintf("pixeldrain_list_%s.zip", m[1]), nil
+		}
+		reFile := regexp.MustCompile(`pixeldrain\.com/u/([a-zA-Z0-9]+)`)
+		if m := reFile.FindStringSubmatch(rawURL); len(m) > 1 {
 			return fmt.Sprintf("https://pixeldrain.com/api/file/%s?download", m[1]), "", nil
 		}
 	}

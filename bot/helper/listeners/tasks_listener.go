@@ -5,11 +5,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"go-mirror-bot/bot"
 	"go-mirror-bot/bot/helper/ext_utils"
 	"go-mirror-bot/bot/helper/mirror_utils/download_utils"
 	"go-mirror-bot/bot/helper/mirror_utils/upload_utils"
+	"go-mirror-bot/bot/helper/mirror_utils/upload_utils/ddlserver"
 	"go-mirror-bot/bot/helper/themes"
 
 	tele "gopkg.in/telebot.v3"
@@ -69,18 +72,54 @@ func (l *MirrorLeechListener) ProcessCompletedDownload(filePath string, totalSiz
 			l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Leech", "", t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
 		}
 	} else {
-		t.Status = "Uploading"
-		if l.StatusMsg != nil {
-			l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
-		}
-		if err := upload_utils.RcloneTransfer(filePath, l.RcloneDest, nil); err != nil {
-			l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
-		} else {
-			dest := l.RcloneDest
-			if dest == "" {
-				dest = "Disimpan di server"
+		// Cek jika target upload adalah DDL (Pixeldrain)
+		destLower := strings.ToLower(l.RcloneDest)
+		isDDL := destLower == "ddl" || destLower == "pixeldrain" || (destLower == "" && (bot.ConfigDict.DefaultUpload == "ddl" || bot.ConfigDict.DefaultUpload == "pixeldrain"))
+
+		if isDDL {
+			t.Status = "Uploading (DDL)"
+			if l.StatusMsg != nil {
+				l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Pixeldrain (DDL)...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
 			}
-			l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Mirror", dest, t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
+
+			apiKey := bot.ConfigDict.PixeldrainAPI
+			if uCfg := ext_utils.UserStore.Get(t.UserID); uCfg != nil && uCfg.PixeldrainAPI != "" {
+				apiKey = uCfg.PixeldrainAPI
+			}
+
+			pd := ddlserver.NewPixeldrain(apiKey)
+			pdLink, err := pd.Upload(filePath)
+			if err != nil {
+				l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Pixeldrain Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+			} else {
+				completeText := fmt.Sprintf(
+					"<b><i>Mirror DDL Selesai!</i></b>\n\n"+
+						"➲ <b>File:</b> <code>%s</code>\n"+
+						"┠ <b>Size:</b> <code>%s</code>\n"+
+						"┠ <b>Server:</b> <code>Pixeldrain DDL</code>\n"+
+						"┠ <b>Link:</b> <a href=\"%s\">%s</a>\n"+
+						"┖ <b>By:</b> %s",
+					fileName, ext_utils.FormatBytes(totalSize), pdLink, pdLink, t.User,
+				)
+				markup := &tele.ReplyMarkup{}
+				btnURL := markup.URL("🔗 Unduh Pixeldrain", pdLink)
+				markup.Inline(markup.Row(btnURL))
+				l.Bot.Send(l.Recipient, completeText, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
+			}
+		} else {
+			t.Status = "Uploading"
+			if l.StatusMsg != nil {
+				l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+			}
+			if err := upload_utils.RcloneTransfer(filePath, l.RcloneDest, nil); err != nil {
+				l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+			} else {
+				dest := l.RcloneDest
+				if dest == "" {
+					dest = "Disimpan di server"
+				}
+				l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Mirror", dest, t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
+			}
 		}
 	}
 

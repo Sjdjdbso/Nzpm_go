@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"go-mirror-bot/bot/helper/ext_utils"
+	"go-mirror-bot/bot/helper/mirror_utils/upload_utils/ddlserver"
 	"go-mirror-bot/bot/helper/telegram_helper"
 
 	tele "gopkg.in/telebot.v3"
@@ -36,28 +37,36 @@ func InitUsersSettings(b *tele.Bot) {
 			suffixStatus = fmt.Sprintf("✅ <code>%s</code>", u.LeechSuffix)
 		}
 
+		pdStatus := "❌ Default Bot"
+		if u.PixeldrainAPI != "" {
+			pdStatus = "✅ Kustom Pribadi"
+		}
+
 		text := fmt.Sprintf(
-			"⚙️ <b><i>PENGATURAN PENGGUNA</i></b>\n"+
+			"⚙️ <b><i>PENGATURAN PENGGUNA (WZML-X)</i></b>\n"+
 				"┠ <b>User:</b> @%s (<code>%d</code>)\n"+
 				"┠ <b>Custom Thumbnail:</b> %s\n"+
 				"┠ <b>Custom Caption:</b> %s\n"+
 				"┠ <b>Leech Prefix:</b> %s\n"+
-				"┖ <b>Leech Suffix:</b> %s\n\n"+
+				"┠ <b>Leech Suffix:</b> %s\n"+
+				"┖ <b>Pixeldrain API:</b> %s\n\n"+
 				"💡 <i>Gunakan tombol di bawah atau perintah langsung:\n"+
 				"• Reply foto dengan /setthumb\n"+
 				"• /setcaption &lt;teks&gt;\n"+
-				"• /setprefix &lt;teks&gt;\n"+
-				"• /setsuffix &lt;teks&gt;</i>",
-			c.Sender().Username, userID, thumbStatus, captionStatus, prefixStatus, suffixStatus,
+				"• /setprefix &lt;teks&gt; | /setsuffix &lt;teks&gt;\n"+
+				"• /setpdapi &lt;api_key&gt; | /delpdapi</i>",
+			c.Sender().Username, userID, thumbStatus, captionStatus, prefixStatus, suffixStatus, pdStatus,
 		)
 
 		markup := &tele.ReplyMarkup{}
 		btnDelThumb := markup.Data("🗑 Hapus Thumbnail", "us_del_thumb")
 		btnDelCap := markup.Data("🗑 Reset Caption", "us_del_cap")
+		btnDelPd := markup.Data("🗑 Reset Pixeldrain API", "us_del_pd")
 		btnClose := markup.Data("❌ Tutup", "us_close")
 
 		markup.Inline(
 			markup.Row(btnDelThumb, btnDelCap),
+			markup.Row(btnDelPd),
 			markup.Row(btnClose),
 		)
 
@@ -160,6 +169,39 @@ func InitUsersSettings(b *tele.Bot) {
 		return c.Send(fmt.Sprintf("✅ <b>Leech suffix disimpan:</b> <code>%s</code>", suffix), &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
+	// 9. /setpdapi (Pixeldrain API)
+	handleSetPdApi := telegram_helper.AuthGuard(func(c tele.Context) error {
+		userID := c.Sender().ID
+		if len(c.Args()) == 0 {
+			return c.Send("⚠️ Format: <code>/setpdapi &lt;API_KEY&gt;</code>\nDapatkan API key di https://pixeldrain.com/user/api_keys", &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		apiKey := c.Args()[0]
+		pd := ddlserver.NewPixeldrain(apiKey)
+		if !pd.IsPdApi(apiKey) {
+			return c.Send("❌ <b>API Key Pixeldrain tidak valid!</b> Periksa kembali API key akun Anda.", &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+
+		ext_utils.UserStore.SetPixeldrainAPI(userID, apiKey)
+		return c.Send("✅ <b>Pixeldrain API Key berhasil disimpan!</b> Unggahan DDL sekarang akan menggunakan akun pribadi Anda.", &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
+	// 10. /delpdapi
+	handleDelPdApi := telegram_helper.AuthGuard(func(c tele.Context) error {
+		userID := c.Sender().ID
+		ext_utils.UserStore.SetPixeldrainAPI(userID, "")
+		return c.Send("🗑 <b>Pixeldrain API Key berhasil dihapus.</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
+	// 11. /mypdapi
+	handleMyPdApi := telegram_helper.AuthGuard(func(c tele.Context) error {
+		userID := c.Sender().ID
+		u := ext_utils.UserStore.Get(userID)
+		if u.PixeldrainAPI == "" {
+			return c.Send("ℹ️ Anda belum menyetel API Key Pixeldrain kustom. Gunakan <code>/setpdapi &lt;key&gt;</code>.", &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		return c.Send(fmt.Sprintf("🔑 <b>Pixeldrain API Key Anda:</b> <code>%s</code>", u.PixeldrainAPI), &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
 	// Button Callbacks
 	b.Handle(&tele.Btn{Unique: "us_del_thumb"}, func(c tele.Context) error {
 		userID := c.Sender().ID
@@ -173,6 +215,13 @@ func InitUsersSettings(b *tele.Bot) {
 		ext_utils.UserStore.SetCaption(userID, "")
 		_ = c.Respond(&tele.CallbackResponse{Text: "Caption direset!"})
 		return c.Edit("🗑 <b>Custom caption berhasil direset.</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
+	b.Handle(&tele.Btn{Unique: "us_del_pd"}, func(c tele.Context) error {
+		userID := c.Sender().ID
+		ext_utils.UserStore.SetPixeldrainAPI(userID, "")
+		_ = c.Respond(&tele.CallbackResponse{Text: "Pixeldrain API dihapus!"})
+		return c.Edit("🗑 <b>Pixeldrain API Key berhasil direset.</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
 	b.Handle(&tele.Btn{Unique: "us_close"}, func(c tele.Context) error {
@@ -193,4 +242,8 @@ func InitUsersSettings(b *tele.Bot) {
 	b.Handle("/delcaption", handleDelCaption)
 	b.Handle("/setprefix", handleSetPrefix)
 	b.Handle("/setsuffix", handleSetSuffix)
+
+	b.Handle("/setpdapi", handleSetPdApi)
+	b.Handle("/delpdapi", handleDelPdApi)
+	b.Handle("/mypdapi", handleMyPdApi)
 }
