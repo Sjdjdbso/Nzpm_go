@@ -6,8 +6,8 @@ Dokumentasi pelacakan perkembangan implementasi fitur bot mirror berbasis Golang
 
 ## 📊 Status Ringkas Saat Ini
 - **Status Bot:** 🟢 Berjalan Aktif & Responsif
-- **Konsumsi RAM:** ~13 MB - 16 MB (Idle)
-- **Engine Download:** Aria2c JSON-RPC (Aktif)
+- **Konsumsi RAM:** ~13 MB - 18 MB (Idle)
+- **Engine Unduhan:** Aria2c JSON-RPC, YT-DLP, DDL Resolver, Rclone Cloud
 - **Health Check Web:** HTTP Port 8080 (Aktif untuk Koyeb)
 - **Deployment Target:** Koyeb / Docker Ready
 
@@ -21,10 +21,8 @@ Dokumentasi pelacakan perkembangan implementasi fitur bot mirror berbasis Golang
 - [x] Klien JSON-RPC Aria2c (`AddURI`, `TellStatus`, `Remove`, `GetGlobalStat`).
 - [x] Thread-safe in-memory task manager dengan visual progress bar.
 - [x] Command dasar: `/start`, `/ping`, `/status`, `/cancel <gid>`.
-- [x] Perintah `/mirror <url>` untuk direct download.
-- [x] Auto-cleanup file lokal setelah proses selesai.
 - [x] Mini HTTP web server di port 8080 untuk Koyeb Health Check.
-- [x] Dockerfile multi-stage build super ringan (~42MB compressed).
+- [x] Dockerfile multi-stage build super ringan (~140MB).
 
 ---
 
@@ -62,28 +60,41 @@ Dokumentasi pelacakan perkembangan implementasi fitur bot mirror berbasis Golang
 
 ---
 
-### ⏳ Fase 6: Rclone Cloud Multi-Config & Sync (Berikutnya)
-- [ ] Command `/clone <remote1:path> <remote2:path>` (Cloud to Cloud transfer tanpa makan disk).
-- [ ] Command `/list <remote:path>` untuk melihat isi remote cloud storage.
+### ✅ Fase 6: Engine DDL, YT-DLP, & Cloud Clone (Selesai)
+- [x] **DDL Resolver Otomatis**: Mem-bypass dan mengubah link hosting menjadi direct download link untuk:
+  - Google Drive (`drive.google.com`)
+  - Mediafire (`mediafire.com`)
+  - Pixeldrain (`pixeldrain.com`)
+  - Dropbox (`dropbox.com`)
+  - Solidfiles (`solidfiles.com`)
+- [x] **YT-DLP Engine**:
+  - Command `/ytdl`, `/y`, `/ytdlzip`, `/yz` (Download video/audio ke Cloud).
+  - Command `/ytdlleech`, `/yl`, `/ytdlzipleech`, `/yzl` (Download video/audio ke Telegram).
+  - Dukungan YouTube, TikTok, Instagram, Twitter, Facebook, SoundCloud, dll.
+  - Integrasi `ffmpeg` untuk penggabungan stream video + audio resolusi tinggi.
+- [x] **Cloud & GDrive Tools**:
+  - Command `/clone <src> <dst>`, `/c` (Salin antar remote Cloud / Google Drive langsung tanpa makan disk lokal).
+  - Command `/count <remote:path>` (Hitung total file dan ukuran folder remote).
 
 ---
 
 ## 📝 Log Perubahan (Changelog)
 
+### [2026-09-04] - Versi 1.4.0 (DDL Resolver, YT-DLP & GDrive/Cloud Clone)
+- Menambahkan DDL resolver untuk Google Drive, Mediafire, Pixeldrain, Dropbox, dan Solidfiles.
+- Menambahkan engine YT-DLP dengan dukungan FFmpeg untuk ratusan situs video.
+- Menambahkan perintah Cloud Clone (`/clone`) dan penghitung ukuran remote (`/count`).
+- Menambahkan dependensi `ffmpeg` dan `yt-dlp` ke Docker image.
+
 ### [2026-09-04] - Versi 1.3.0 (Telegram Leech Engine, Auto-Split, & 7z Archiving)
 - Menambahkan modul `/leech` untuk upload langsung ke Telegram chat.
 - Menambahkan auto-splitter file 49MB untuk mengatasi limit Bot API 50MB.
 - Menambahkan flag `-z` (zip) dan `-e` (extract) otomatis.
-- Menambahkan dependensi `p7zip` ke sistem dan Docker image.
 
 ### [2026-09-04] - Versi 1.2.0 (Security, Magnets, Torrents & Live Progress)
 - Menambahkan sistem autorisasi dinamis (`/auth`, `/unauth`, `/authlist`).
 - Menambahkan parser argumen (`-n`, `|`, `-rc`).
 - Menambahkan integrasi unduhan torrent file & magnet link.
-- Menambahkan auto-updating message dengan tombol inline cancel interaktif.
 
 ### [2026-09-04] - Versi 1.0.0 (Initial Working Release)
 - Membangun seluruh arsitektur bot Go menggantikan dependensi Python.
-- Menguji langsung di server dengan bot Telegram `@Tesmirorbot`.
-- Menghasilkan waktu build Docker cepat dan konsumsi memori sangat rendah (~13 MB).
-- Memperbaiki bug permission denied Aria2 dengan auto-resolusi absolute path direktori download.
