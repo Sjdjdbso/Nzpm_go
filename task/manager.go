@@ -1,16 +1,18 @@
 package task
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	"go-mirror-bot/core"
 )
 
 type Task struct {
 	GID           string
 	Name          string
 	Status        string // "Downloading", "Uploading", "Completed", "Error"
+	Mode          string // "Mirror", "Leech"
 	TotalSize     int64
 	CompletedSize int64
 	Speed         int64
@@ -18,17 +20,20 @@ type Task struct {
 	Progress      float64
 	FilePath      string
 	User          string
+	UserID        int64
 	StartTime     time.Time
 	ErrorMessage  string
 }
 
 type Manager struct {
-	mu    sync.RWMutex
-	tasks map[string]*Task
+	mu           sync.RWMutex
+	tasks        map[string]*Task
+	BotStartTime time.Time
 }
 
 var TaskMgr = &Manager{
-	tasks: make(map[string]*Task),
+	tasks:        make(map[string]*Task),
+	BotStartTime: time.Now(),
 }
 
 func (m *Manager) Add(t *Task) {
@@ -59,61 +64,49 @@ func (m *Manager) All() []*Task {
 	return list
 }
 
-// GenerateProgressBar membuat visual bar: [██████░░░░]
-func GenerateProgressBar(percent float64) string {
-	const totalBlocks = 10
-	filled := int((percent / 100.0) * totalBlocks)
-	if filled > totalBlocks {
-		filled = totalBlocks
+func (m *Manager) CancelAll() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	count := 0
+	for gid := range m.tasks {
+		core.Aria.Remove(gid)
+		delete(m.tasks, gid)
+		count++
 	}
-	if filled < 0 {
-		filled = 0
-	}
-	empty := totalBlocks - filled
-	return fmt.Sprintf("[%s%s]", strings.Repeat("█", filled), strings.Repeat("░", empty))
+	return count
 }
 
-// FormatStatusView menyusun ringkasan status aktif untuk Telegram
+// FormatStatusView menyusun tampilan /status persis tema WZML-X
 func (m *Manager) FormatStatusView() string {
 	tasks := m.All()
+	stats := core.GetSystemStats(m.BotStartTime)
+
 	if len(tasks) == 0 {
-		return "<b>Tidak ada proses aktif saat ini.</b>"
+		return "<i>No Active Downloads!</i>\n\n" + core.FormatWZMLFooter(0, stats, 0)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("<b>⚡ Tugas Berjalan (%d):</b>\n\n", len(tasks)))
+	var totalSpeed int64
 
 	for _, t := range tasks {
-		bar := GenerateProgressBar(t.Progress)
-		icon := "📥"
-		if t.Status == "Uploading" {
-			icon = "📤"
-		} else if t.Status == "Error" {
-			icon = "❌"
-		}
-
-		sb.WriteString(fmt.Sprintf("%s <b>%s</b>\n", icon, t.Name))
-		sb.WriteString(fmt.Sprintf("├ <b>Status:</b> %s\n", t.Status))
-		sb.WriteString(fmt.Sprintf("├ <b>Progres:</b> %s %.1f%%\n", bar, t.Progress))
-		sb.WriteString(fmt.Sprintf("├ <b>Ukuran:</b> %s / %s\n", formatBytes(t.CompletedSize), formatBytes(t.TotalSize)))
-		if t.Status == "Downloading" {
-			sb.WriteString(fmt.Sprintf("├ <b>Speed:</b> %s/s | <b>ETA:</b> %s\n", formatBytes(t.Speed), t.ETA))
-		}
-		sb.WriteString(fmt.Sprintf("└ <b>Diminta oleh:</b> %s\n\n", t.User))
+		totalSpeed += t.Speed
+		sb.WriteString(core.FormatWZMLTaskStatus(
+			t.Name,
+			t.Progress,
+			t.CompletedSize,
+			t.TotalSize,
+			t.Speed,
+			t.ETA,
+			t.Status,
+			t.Mode,
+			t.User,
+			t.UserID,
+			t.GID,
+			t.StartTime,
+		))
+		sb.WriteString("\n\n")
 	}
 
+	sb.WriteString(core.FormatWZMLFooter(len(tasks), stats, totalSpeed))
 	return sb.String()
-}
-
-func formatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
