@@ -1,4 +1,4 @@
-package core
+package download_utils
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"time"
 )
 
@@ -31,31 +30,11 @@ func InitAriaClient(rpcUrl string) {
 	}
 }
 
-type RPCRequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	ID      string        `json:"id"`
-	Method  string        `json:"method"`
-	Params  []interface{} `json:"params"`
-}
-
-type RPCResponse struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      string          `json:"id"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *RPCError       `json:"error,omitempty"`
-}
-
-type RPCError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 type FileItem struct {
 	Index           string `json:"index"`
 	Path            string `json:"path"`
 	Length          string `json:"length"`
 	CompletedLength string `json:"completedLength"`
-	Selected        string `json:"selected"`
 }
 
 type AriaStatus struct {
@@ -66,15 +45,15 @@ type AriaStatus struct {
 	DownloadSpeed   string     `json:"downloadSpeed"`
 	Files           []FileItem `json:"files"`
 	ErrorMessage    string     `json:"errorMessage"`
-	FollowedBy      []string   `json:"followedBy"` // untuk transisi metadata magnet ke download utama
+	FollowedBy      []string   `json:"followedBy"`
 }
 
 func (c *AriaClient) Call(method string, params []interface{}, result interface{}) error {
-	reqBody := RPCRequest{
-		JSONRPC: "2.0",
-		ID:      fmt.Sprintf("%d", time.Now().UnixNano()),
-		Method:  method,
-		Params:  params,
+	reqBody := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      fmt.Sprintf("%d", time.Now().UnixNano()),
+		"method":  method,
+		"params":  params,
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -93,11 +72,17 @@ func (c *AriaClient) Call(method string, params []interface{}, result interface{
 		return err
 	}
 
-	var rpcResp RPCResponse
+	var rpcResp struct {
+		Result json.RawMessage `json:"result,omitempty"`
+		Error  *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
+	}
+
 	if err := json.Unmarshal(body, &rpcResp); err != nil {
 		return err
 	}
-
 	if rpcResp.Error != nil {
 		return fmt.Errorf("aria2 error [%d]: %s", rpcResp.Error.Code, rpcResp.Error.Message)
 	}
@@ -105,7 +90,6 @@ func (c *AriaClient) Call(method string, params []interface{}, result interface{
 	if result != nil && len(rpcResp.Result) > 0 {
 		return json.Unmarshal(rpcResp.Result, result)
 	}
-
 	return nil
 }
 
@@ -132,9 +116,8 @@ func (c *AriaClient) AddURI(uri string, dir string, filename string) (string, er
 	return gid, err
 }
 
-// AddTorrent menambahkan file .torrent dalam bentuk byte array (base64)
 func (c *AriaClient) AddTorrent(torrentBytes []byte, dir string, filename string) (string, error) {
-	b64Torrent := base64.StdEncoding.EncodeToString(torrentBytes)
+	b64 := base64.StdEncoding.EncodeToString(torrentBytes)
 	options := map[string]interface{}{}
 	if dir != "" {
 		absDir, err := filepath.Abs(dir)
@@ -148,7 +131,7 @@ func (c *AriaClient) AddTorrent(torrentBytes []byte, dir string, filename string
 	}
 
 	params := []interface{}{
-		b64Torrent,
+		b64,
 		[]string{},
 		options,
 	}
@@ -175,41 +158,4 @@ func (c *AriaClient) TellStatus(gid string) (*AriaStatus, error) {
 func (c *AriaClient) Remove(gid string) error {
 	var res string
 	return c.Call("aria2.forceRemove", []interface{}{gid}, &res)
-}
-
-func FormatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
-}
-
-func FormatSpeed(bytesPerSec int64) string {
-	return fmt.Sprintf("%s/s", FormatBytes(bytesPerSec))
-}
-
-func CalculateETA(total, completed, speed int64) string {
-	if speed <= 0 || completed >= total {
-		return "0s"
-	}
-	remainingBytes := total - completed
-	seconds := remainingBytes / speed
-
-	if seconds < 60 {
-		return fmt.Sprintf("%ds", seconds)
-	} else if seconds < 3600 {
-		return fmt.Sprintf("%dm %ds", seconds/60, seconds%60)
-	}
-	return fmt.Sprintf("%dh %dm", seconds/3600, (seconds%3600)/60)
-}
-
-func StringToInt64(s string) int64 {
-	val, _ := strconv.ParseInt(s, 10, 64)
-	return val
 }

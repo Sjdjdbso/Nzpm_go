@@ -5,44 +5,48 @@ import (
 	"time"
 
 	"go-mirror-bot/bot"
-	"go-mirror-bot/config"
-	"go-mirror-bot/core"
+	"go-mirror-bot/bot/helper/mirror_utils/download_utils"
+	"go-mirror-bot/bot/modules"
 
 	tele "gopkg.in/telebot.v3"
 )
 
 func main() {
 	log.Println("==================================================")
-	log.Println("🚀 Memulai Go-Mirror-Bot (Lightweight Koyeb Ready)")
+	log.Printf("🚀 Memulai %s (%s) [Koyeb Ready]\n", bot.BotName, bot.Version)
 	log.Println("==================================================")
 
-	// 1. Muat Konfigurasi
-	config.LoadConfig()
+	// 1. Muat Konfigurasi (bot/config.py)
+	bot.LoadConfig()
 
-	// 2. Jalankan HTTP Health Check Server untuk Koyeb
-	bot.StartHealthServer(config.AppConfig.Port)
-
-	// 3. Inisialisasi Aria2 Client & Pastikan Daemon Aktif
-	core.InitAriaClient("")
-	if err := core.EnsureAria2Daemon(); err != nil {
-		log.Printf("[WARN] Tidak dapat memulai Aria2 Daemon otomatis: %v", err)
-		log.Println("[INFO] Pastikan Aria2c dijalankan via aria.sh jika berjalan di Docker.")
+	// 2. Jalankan Health Server & Aria2c (bot/startup.py)
+	bot.LaunchHealthServer(bot.ConfigDict.Port)
+	download_utils.InitAriaClient("")
+	if err := bot.LaunchAria2c(); err != nil {
+		log.Printf("[WARN] Gagal auto-start Aria2c: %v (Akan menggunakan aria.sh di Docker)", err)
 	}
 
-	// 4. Inisialisasi Bot Telegram
+	// 3. Inisialisasi Bot Telegram
 	pref := tele.Settings{
-		Token:  config.AppConfig.BotToken,
+		Token:  bot.ConfigDict.BotToken,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
 	}
 
 	b, err := tele.NewBot(pref)
 	if err != nil {
-		log.Fatalf("[FATAL] Gagal membuat client bot Telegram: %v", err)
+		log.Fatalf("[FATAL] Gagal membuat client bot: %v", err)
 	}
 
-	// 5. Daftarkan Handler Bot
-	bot.RegisterHandlers(b)
+	// 4. Daftarkan Semua Modul (bot/modules/)
+	modules.InitStats(b)
+	modules.InitAuthorize(b)
+	modules.InitCancel(b)
+	modules.InitStatus(b)
+	modules.InitClone(b)
+	modules.InitMirrorLeech(b)
+	modules.InitYtDlp(b)
+	modules.InitShell(b)
 
-	log.Printf("[INFO] Bot @%s berhasil aktif dan siap menerima perintah!", b.Me.Username)
+	log.Printf("[INFO] Bot @%s aktif dan siap menerima perintah!\n", b.Me.Username)
 	b.Start()
 }

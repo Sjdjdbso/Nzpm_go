@@ -1,4 +1,4 @@
-package core
+package download_utils
 
 import (
 	"bufio"
@@ -9,23 +9,18 @@ import (
 	"strings"
 )
 
-type YtDlpProgress struct {
+type YtProgress struct {
 	Percent string
 	Speed   string
 	ETA     string
 }
 
-// DownloadYtDlp mengunduh video/audio menggunakan binary yt-dlp
-func DownloadYtDlp(targetURL string, outDir string, customName string, onProgress func(prog YtDlpProgress)) (string, error) {
+func YtDlpDownload(targetURL, outDir, customName string, onProgress func(p YtProgress)) (string, error) {
 	outTemplate := "%(title)s.%(ext)s"
 	if customName != "" {
 		outTemplate = customName
 	}
-
-	absDir, err := filepath.Abs(outDir)
-	if err != nil {
-		absDir = outDir
-	}
+	absDir, _ := filepath.Abs(outDir)
 
 	args := []string{
 		"--newline",
@@ -51,14 +46,12 @@ func DownloadYtDlp(targetURL string, outDir string, customName string, onProgres
 	var lastFileName string
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
-		line := scanner.Text()
-		line = strings.TrimSpace(line)
-
+		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, "PROGRESS_META:") {
 			meta := strings.TrimPrefix(line, "PROGRESS_META:")
 			parts := strings.Split(meta, "|")
 			if len(parts) >= 3 && onProgress != nil {
-				onProgress(YtDlpProgress{
+				onProgress(YtProgress{
 					Percent: strings.TrimSpace(parts[0]),
 					Speed:   strings.TrimSpace(parts[1]),
 					ETA:     strings.TrimSpace(parts[2]),
@@ -66,11 +59,6 @@ func DownloadYtDlp(targetURL string, outDir string, customName string, onProgres
 			}
 		} else if strings.Contains(line, "[download] Destination:") {
 			lastFileName = strings.TrimSpace(strings.TrimPrefix(line, "[download] Destination:"))
-		} else if strings.Contains(line, "has already been downloaded") {
-			parts := strings.Fields(line)
-			if len(parts) > 1 {
-				lastFileName = parts[1]
-			}
 		}
 	}
 
@@ -78,16 +66,13 @@ func DownloadYtDlp(targetURL string, outDir string, customName string, onProgres
 		return "", fmt.Errorf("yt-dlp error: %w", err)
 	}
 
-	// Jika nama file tidak tertangkap di log, cari file terbaru di outDir
 	if lastFileName == "" {
-		// Dapatkan nama file yang diunduh via yt-dlp --print filename
 		getNameCmd := exec.Command("yt-dlp", "--no-playlist", "--print", "filename", "-P", absDir, "-o", outTemplate, targetURL)
-		outBytes, getErr := getNameCmd.Output()
-		if getErr == nil {
+		if outBytes, getErr := getNameCmd.Output(); getErr == nil {
 			lastFileName = strings.TrimSpace(string(outBytes))
 		}
 	}
 
-	log.Printf("[INFO] Unduhan yt-dlp selesai: %s", lastFileName)
+	log.Printf("[INFO] yt-dlp unduhan selesai: %s", lastFileName)
 	return lastFileName, nil
 }
