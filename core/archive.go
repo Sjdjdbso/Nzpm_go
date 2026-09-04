@@ -16,7 +16,6 @@ func IsArchive(path string) bool {
 	case ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz":
 		return true
 	}
-	// Cek .tar.gz dsb
 	if strings.HasSuffix(strings.ToLower(path), ".tar.gz") || strings.HasSuffix(strings.ToLower(path), ".tar.xz") {
 		return true
 	}
@@ -48,25 +47,45 @@ func ExtractArchive(archivePath string) (string, error) {
 	return outDir, nil
 }
 
-// CompressToZip mengompres file atau direktori menjadi file .zip
+// CompressToZip mengompres file atau direktori menjadi file .zip dengan aman
 func CompressToZip(sourcePath string) (string, error) {
+	fi, err := os.Stat(sourcePath)
+	if err != nil {
+		return "", err
+	}
+
+	// Jika file non-folder sudah berekstensi .zip, tidak perlu dikompres ganda
+	if !fi.IsDir() && strings.HasSuffix(strings.ToLower(sourcePath), ".zip") {
+		log.Printf("[INFO] File %s sudah berformat .zip, melewati kompresi.", sourcePath)
+		return sourcePath, nil
+	}
+
 	dir := filepath.Dir(sourcePath)
 	baseName := filepath.Base(sourcePath)
-	zipName := strings.TrimSuffix(baseName, filepath.Ext(baseName)) + ".zip"
-	zipPath := filepath.Join(dir, zipName)
+	tempZipName := fmt.Sprintf("zip_%d.zip", os.Getpid())
+	tempZipPath := filepath.Join(dir, tempZipName)
 
-	log.Printf("[INFO] Mengompres %s menjadi %s...", sourcePath, zipPath)
-	cmd := exec.Command("7z", "a", "-tzip", zipPath, sourcePath)
+	targetZipName := strings.TrimSuffix(baseName, filepath.Ext(baseName)) + ".zip"
+	finalZipPath := filepath.Join(dir, targetZipName)
+
+	log.Printf("[INFO] Mengompres %s menjadi %s...", sourcePath, finalZipPath)
+
+	// Kompres ke file temporary terlebih dahulu agar tidak konflik nama
+	cmd := exec.Command("7z", "a", "-tzip", tempZipPath, sourcePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
+		os.Remove(tempZipPath)
 		return "", fmt.Errorf("gagal mengompres zip: %s (%v)", string(output), err)
 	}
 
-	// Hapus sumber asli jika berbeda dari zipPath
-	if sourcePath != zipPath {
-		os.RemoveAll(sourcePath)
+	// Hapus file atau folder sumber
+	os.RemoveAll(sourcePath)
+
+	// Rename temp zip ke nama final
+	if err := os.Rename(tempZipPath, finalZipPath); err != nil {
+		return tempZipPath, nil
 	}
 
-	return zipPath, nil
+	return finalZipPath, nil
 }
 
 // SplitArchive memecah file menjadi part-part maksimal 49MB (untuk batas Telegram Bot API)
@@ -81,13 +100,11 @@ func SplitArchive(filePath string) ([]string, error) {
 		return nil, fmt.Errorf("gagal memecah file: %s (%v)", string(output), err)
 	}
 
-	// Cari semua file hasil split
 	matches, err := filepath.Glob(outPrefix + ".*")
 	if err != nil || len(matches) == 0 {
 		return nil, fmt.Errorf("file split tidak ditemukan: %v", err)
 	}
 
-	// Hapus file asli
 	os.Remove(filePath)
 	return matches, nil
 }
