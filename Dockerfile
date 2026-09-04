@@ -9,18 +9,19 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o go-mirror-bot .
 
-# ── Stage 2: Runtime Image Ringan (Hanya ~100MB) ──────────────────────────
+# ── Stage 2: Runtime Image Ringan (Hanya ~110MB) ──────────────────────────
 FROM alpine:3.20
 
 WORKDIR /app
 
-# Install dependensi esensial saja (Aria2 & Rclone)
+# Install dependensi esensial (Aria2, Rclone, 7zip untuk kompres/ekstrak)
 RUN apk add --no-cache \
     aria2 \
     rclone \
     ca-certificates \
     curl \
-    bash
+    bash \
+    p7zip
 
 # Salin binary dari stage builder & skrip runner
 COPY --from=builder /app/go-mirror-bot .

@@ -53,14 +53,28 @@ Dokumentasi pelacakan perkembangan implementasi fitur bot mirror berbasis Golang
 
 ---
 
-### ⏳ Fase 5: Kompresi, Dekompresi, & Leech Engine (Berikutnya)
-- [ ] Flag kompresi `-z` (Zip otomatis sebelum upload).
-- [ ] Flag dekompresi `-e` (Extract `.zip`, `.rar`, `.7z` otomatis setelah download).
-- [ ] Perintah `/leech <url>` untuk mengirim hasil unduhan langsung ke obrolan Telegram.
+### ✅ Fase 5: Kompresi, Dekompresi, & Telegram Leech Engine (Selesai)
+- [x] **Perintah `/leech <url>`**: Mengirim hasil unduhan langsung ke Telegram chat pengguna sebagai Document / Video / Audio.
+- [x] **Auto-Split Telegram**: Memecah file menjadi part-part 49MB jika ukuran file melebihi batas 50MB Telegram Bot API.
+- [x] **Flag Kompresi `-z`**: Mengompres file/folder unduhan menjadi file `.zip` sebelum di-mirror atau di-leech.
+- [x] **Flag Dekompresi `-e`**: Mengekstrak arsip (`.zip`, `.rar`, `.7z`, `.tar.gz`) secara otomatis setelah unduhan selesai.
+- [x] Penambahan tool `p7zip` ke Dockerfile runtime.
+
+---
+
+### ⏳ Fase 6: Rclone Cloud Multi-Config & Sync (Berikutnya)
+- [ ] Command `/clone <remote1:path> <remote2:path>` (Cloud to Cloud transfer tanpa makan disk).
+- [ ] Command `/list <remote:path>` untuk melihat isi remote cloud storage.
 
 ---
 
 ## 📝 Log Perubahan (Changelog)
+
+### [2026-09-04] - Versi 1.3.0 (Telegram Leech Engine, Auto-Split, & 7z Archiving)
+- Menambahkan modul `/leech` untuk upload langsung ke Telegram chat.
+- Menambahkan auto-splitter file 49MB untuk mengatasi limit Bot API 50MB.
+- Menambahkan flag `-z` (zip) dan `-e` (extract) otomatis.
+- Menambahkan dependensi `p7zip` ke sistem dan Docker image.
 
 ### [2026-09-04] - Versi 1.2.0 (Security, Magnets, Torrents & Live Progress)
 - Menambahkan sistem autorisasi dinamis (`/auth`, `/unauth`, `/authlist`).

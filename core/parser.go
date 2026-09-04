@@ -9,13 +9,15 @@ type MirrorArgs struct {
 	CustomName   string
 	CustomRemote string
 	IsMagnet     bool
+	IsZip        bool // Flag -z
+	IsExtract    bool // Flag -e
 }
 
 // ParseMirrorArgs mem-parsing argumen command mirip seperti WZML (wzv3)
 func ParseMirrorArgs(rawText string) MirrorArgs {
 	res := MirrorArgs{}
 
-	// Bersihkan prefix command seperti "/mirror"
+	// Bersihkan prefix command seperti "/mirror" atau "/leech"
 	words := strings.Fields(rawText)
 	if len(words) > 0 && strings.HasPrefix(words[0], "/") {
 		words = words[1:]
@@ -34,7 +36,7 @@ func ParseMirrorArgs(rawText string) MirrorArgs {
 		return res
 	}
 
-	// Parsing flags: -n (nama), -rc (remote rclone)
+	// Parsing flags: -n (nama), -rc (remote rclone), -z (zip), -e (extract)
 	var linkParts []string
 	for i := 0; i < len(words); i++ {
 		w := words[i]
@@ -44,6 +46,10 @@ func ParseMirrorArgs(rawText string) MirrorArgs {
 		} else if w == "-rc" && i+1 < len(words) {
 			res.CustomRemote = words[i+1]
 			i++
+		} else if w == "-z" {
+			res.IsZip = true
+		} else if w == "-e" {
+			res.IsExtract = true
 		} else {
 			linkParts = append(linkParts, w)
 		}

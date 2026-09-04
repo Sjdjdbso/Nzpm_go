@@ -22,7 +22,7 @@ func RegisterHandlers(b *tele.Bot) {
 	authGuard := func(next tele.HandlerFunc) tele.HandlerFunc {
 		return func(c tele.Context) error {
 			if !config.Auth.IsAuthorized(c.Sender().ID, c.Chat().ID) {
-				return c.Send("⛔ <b>Akses Ditolak!</b> Anda atau grup ini belum diotorisasi untuk menggunakan bot.\n" +
+				return c.Send("⛔ <b>Akses Ditolak!</b> Anda atau grup ini belum diotorisasi untuk menggunakan bot.\n"+
 					fmt.Sprintf("ℹ️ Chat ID: <code>%d</code> | User ID: <code>%d</code>", c.Chat().ID, c.Sender().ID),
 					&tele.SendOptions{ParseMode: tele.ModeHTML})
 			}
@@ -34,20 +34,23 @@ func RegisterHandlers(b *tele.Bot) {
 
 	// /start
 	b.Handle("/start", func(c tele.Context) error {
-		msg := "👋 <b>Halo! Bot Mirror Go Siap Digunakan.</b>\n\n" +
-			"<b>Perintah Unduhan:</b>\n" +
-			"• <code>/mirror &lt;link&gt;</code> - Download direct link / Magnet\n" +
-			"• <code>/mirror &lt;link&gt; -n nama_baru.ext</code> - Download dengan nama baru\n" +
-			"• <code>/mirror &lt;link&gt; -rc remote:path</code> - Download & upload ke remote Rclone tertentu\n" +
-			"• Kirim file <code>.torrent</code> untuk unduh via torrent\n\n" +
-			"<b>Perintah Monitoring:</b>\n" +
-			"• <code>/status</code> - Pantau progres unduhan/unggahan aktif\n" +
+		msg := "👋 <b>Halo! Bot Mirror & Leech Go Siap Digunakan.</b>\n\n" +
+			"<b>Perintah Unduhan Cloud (Mirror):</b>\n" +
+			"• <code>/mirror &lt;link&gt;</code> - Download & upload ke Cloud via Rclone\n" +
+			"• <code>/mirror &lt;link&gt; -n nama.ext</code> - Rename file unduhan\n" +
+			"• <code>/mirror &lt;link&gt; -z</code> - Zip sebelum diupload\n" +
+			"• <code>/mirror &lt;link&gt; -e</code> - Ekstrak arsip otomatis\n" +
+			"• <code>/mirror &lt;link&gt; -rc remote:path</code> - Upload ke remote khusus\n\n" +
+			"<b>Perintah Unduhan Telegram (Leech):</b>\n" +
+			"• <code>/leech &lt;link&gt;</code> - Kirim file langsung ke obrolan Telegram\n" +
+			"• <code>/leech &lt;link&gt; -n nama.ext</code> - Leech dengan nama baru\n" +
+			"• <code>/leech &lt;link&gt; -z</code> atau <code>-e</code> - Leech dengan zip/ekstrak\n\n" +
+			"<b>Fitur Lain:</b>\n" +
+			"• Kirim file <code>.torrent</code> untuk unduh langsung via Torrent\n" +
+			"• <code>/status</code> - Pantau progres unduhan aktif\n" +
 			"• <code>/cancel &lt;gid&gt;</code> - Batalkan unduhan\n" +
 			"• <code>/ping</code> - Cek responsivitas bot\n\n" +
-			"<b>Perintah Admin (Owner/Sudo):</b>\n" +
-			"• <code>/auth &lt;id&gt;</code> - Otorisasi user atau chat\n" +
-			"• <code>/unauth &lt;id&gt;</code> - Cabut otorisasi\n" +
-			"• <code>/authlist</code> - Lihat daftar chat terotorisasi"
+			"<b>Perintah Admin:</b> <code>/auth</code>, <code>/unauth</code>, <code>/authlist</code>"
 		return c.Send(msg, &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
@@ -59,9 +62,9 @@ func RegisterHandlers(b *tele.Bot) {
 		return c.Send(fmt.Sprintf("🏓 <b>Pong!</b> (%d ms)\n⏱ <b>Uptime:</b> %s", latency, uptime), &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
-	// ── 2. Perintah Administratif (Auth Management) ───────────────────────────
+	// ── 2. Perintah Administratif ─────────────────────────────────────────────
 
-	// /auth [id] (atau reply)
+	// /auth [id]
 	b.Handle("/auth", func(c tele.Context) error {
 		if !config.Auth.IsOwnerOrSudo(c.Sender().ID) {
 			return c.Send("⚠️ Hanya Owner atau Sudo yang dapat menggunakan perintah ini.")
@@ -85,7 +88,7 @@ func RegisterHandlers(b *tele.Bot) {
 		return c.Send(fmt.Sprintf("✅ <b>ID <code>%d</code> berhasil diotorisasi!</b>", targetID), &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
-	// /unauth [id] (atau reply)
+	// /unauth [id]
 	b.Handle("/unauth", func(c tele.Context) error {
 		if !config.Auth.IsOwnerOrSudo(c.Sender().ID) {
 			return c.Send("⚠️ Hanya Owner atau Sudo yang dapat menggunakan perintah ini.")
@@ -126,7 +129,7 @@ func RegisterHandlers(b *tele.Bot) {
 		return c.Send(sb.String(), &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
-	// ── 3. Perintah Download & Mirror (Auth Protected) ────────────────────────
+	// ── 3. Perintah Download & Mirror / Leech ──────────────────────────────────
 
 	// /status
 	b.Handle("/status", authGuard(func(c tele.Context) error {
@@ -155,7 +158,6 @@ func RegisterHandlers(b *tele.Bot) {
 			gid := strings.TrimPrefix(data, "cancel_")
 			t := task.TaskMgr.Get(gid)
 			if t != nil {
-				// Cek permission pembatalan (Owner/Sudo atau pengunggah asli)
 				sender := c.Sender().Username
 				if sender == "" {
 					sender = c.Sender().FirstName
@@ -180,22 +182,29 @@ func RegisterHandlers(b *tele.Bot) {
 		return nil
 	})
 
-	// /mirror <args>
-	b.Handle("/mirror", authGuard(func(c tele.Context) error {
+	// Helper eksekusi task unduhan (dipakai oleh /mirror dan /leech)
+	handleDownloadCommand := func(c tele.Context, isLeech bool) error {
 		rawText := c.Message().Text
-
-		// Cek jika perintah mereply link
 		if c.Message().ReplyTo != nil && c.Message().ReplyTo.Text != "" && len(c.Args()) == 0 {
-			rawText = "/mirror " + c.Message().ReplyTo.Text
+			prefix := "/mirror "
+			if isLeech {
+				prefix = "/leech "
+			}
+			rawText = prefix + c.Message().ReplyTo.Text
 		}
 
 		parsed := core.ParseMirrorArgs(rawText)
 		if parsed.Link == "" {
-			return c.Send("⚠️ Format salah! Gunakan salah satu:\n" +
-				"• <code>/mirror https://domain.com/file.zip</code>\n" +
-				"• <code>/mirror https://domain.com/file.zip -n Baru.zip</code>\n" +
-				"• <code>/mirror https://domain.com/file.zip | Baru.zip</code>\n" +
-				"• <code>/mirror magnet:?xt=...</code>", &tele.SendOptions{ParseMode: tele.ModeHTML})
+			cmdName := "/mirror"
+			if isLeech {
+				cmdName = "/leech"
+			}
+			return c.Send(fmt.Sprintf("⚠️ Format salah! Gunakan salah satu:\n"+
+				"• <code>%s https://domain.com/file.zip</code>\n"+
+				"• <code>%s https://domain.com/file.zip -n Baru.zip</code>\n"+
+				"• <code>%s https://domain.com/file.zip -z</code> (Kompres Zip)\n"+
+				"• <code>%s https://domain.com/archive.zip -e</code> (Ekstrak)\n"+
+				"• <code>%s magnet:?xt=...</code>", cmdName, cmdName, cmdName, cmdName, cmdName), &tele.SendOptions{ParseMode: tele.ModeHTML})
 		}
 
 		sender := c.Sender().Username
@@ -203,7 +212,6 @@ func RegisterHandlers(b *tele.Bot) {
 			sender = c.Sender().FirstName
 		}
 
-		// Tambahkan ke Aria2
 		gid, err := core.Aria.AddURI(parsed.Link, config.AppConfig.DownloadDir, parsed.CustomName)
 		if err != nil {
 			return c.Send(fmt.Sprintf("❌ Gagal memulai download: %v", err))
@@ -232,19 +240,21 @@ func RegisterHandlers(b *tele.Bot) {
 		}
 		task.TaskMgr.Add(t)
 
-		// Buat tombol inline [ 🛑 Batalkan ]
 		inlineMarkup := &tele.ReplyMarkup{}
 		btnCancel := inlineMarkup.Data("🛑 Batalkan", "cancel_"+gid)
 		inlineMarkup.Inline(inlineMarkup.Row(btnCancel))
 
-		headerText := "📥 <b>Unduhan Dimulai!</b>"
+		taskType := "📥 <b>Mirror Unduhan Dimulai!</b>"
+		if isLeech {
+			taskType = "📥 <b>Leech Unduhan Dimulai!</b>"
+		}
 		if parsed.IsMagnet {
-			headerText = "🧲 <b>Magnet Torrent Ditambahkan!</b>"
+			taskType = "🧲 <b>Magnet Torrent Ditambahkan!</b>"
 		}
 
 		initialMsg, err := c.Bot().Send(c.Recipient(),
 			fmt.Sprintf("%s\n🆔 <b>GID:</b> <code>%s</code>\n📁 <b>Nama:</b> <code>%s</code>\n👤 <b>Pengguna:</b> @%s",
-				headerText, gid, initialName, sender),
+				taskType, gid, initialName, sender),
 			inlineMarkup,
 			&tele.SendOptions{ParseMode: tele.ModeHTML},
 		)
@@ -252,25 +262,37 @@ func RegisterHandlers(b *tele.Bot) {
 			log.Printf("[ERROR] Gagal mengirim pesan awal: %v", err)
 		}
 
-		// Jalankan goroutine pemantau progress dinamis
-		go processMirrorLifecycle(b, c.Recipient(), initialMsg, gid, rcloneDest, inlineMarkup)
-
+		// Jalankan siklus pemantauan
+		go processMirrorLifecycle(b, c.Recipient(), initialMsg, gid, rcloneDest, isLeech, parsed.IsZip, parsed.IsExtract, inlineMarkup)
 		return nil
+	}
+
+	// Handler /mirror
+	b.Handle("/mirror", authGuard(func(c tele.Context) error {
+		return handleDownloadCommand(c, false)
 	}))
 
-	// Handle upload file .torrent langsung ke bot
+	// Handler /leech
+	b.Handle("/leech", authGuard(func(c tele.Context) error {
+		return handleDownloadCommand(c, true)
+	}))
+
+	// Handle file .torrent upload
 	b.Handle(tele.OnDocument, authGuard(func(c tele.Context) error {
 		doc := c.Message().Document
 		if doc == nil || !strings.HasSuffix(strings.ToLower(doc.FileName), ".torrent") {
 			return nil
 		}
 
+		caption := c.Message().Caption
+		isLeech := strings.HasPrefix(strings.ToLower(caption), "/leech")
+		parsed := core.ParseMirrorArgs(caption)
+
 		sender := c.Sender().Username
 		if sender == "" {
 			sender = c.Sender().FirstName
 		}
 
-		// Unduh file .torrent dari Telegram ke memori / file sementara
 		fileReader, err := c.Bot().File(&doc.File)
 		if err != nil {
 			return c.Send(fmt.Sprintf("❌ Gagal membaca file torrent: %v", err))
@@ -282,15 +304,19 @@ func RegisterHandlers(b *tele.Bot) {
 			return c.Send(fmt.Sprintf("❌ Gagal memuat data torrent: %v", err))
 		}
 
-		// Tambahkan ke Aria2 via AddTorrent
-		gid, err := core.Aria.AddTorrent(torrentBytes, config.AppConfig.DownloadDir, "")
+		gid, err := core.Aria.AddTorrent(torrentBytes, config.AppConfig.DownloadDir, parsed.CustomName)
 		if err != nil {
 			return c.Send(fmt.Sprintf("❌ Gagal menambahkan torrent ke Aria2: %v", err))
 		}
 
+		initialName := doc.FileName
+		if parsed.CustomName != "" {
+			initialName = parsed.CustomName
+		}
+
 		t := &task.Task{
 			GID:       gid,
-			Name:      doc.FileName,
+			Name:      initialName,
 			Status:    "Downloading",
 			User:      "@" + sender,
 			StartTime: time.Now(),
@@ -301,21 +327,26 @@ func RegisterHandlers(b *tele.Bot) {
 		btnCancel := inlineMarkup.Data("🛑 Batalkan", "cancel_"+gid)
 		inlineMarkup.Inline(inlineMarkup.Row(btnCancel))
 
-		initialMsg, err := c.Bot().Send(c.Recipient(),
-			fmt.Sprintf("📂 <b>File Torrent Diterima!</b>\n🆔 <b>GID:</b> <code>%s</code>\n📁 <b>File:</b> <code>%s</code>\n👤 <b>Pengguna:</b> @%s",
-				gid, doc.FileName, sender),
+		headerText := "📂 <b>Torrent Mirror Dimulai!</b>"
+		if isLeech {
+			headerText = "📂 <b>Torrent Leech Dimulai!</b>"
+		}
+
+		initialMsg, _ := c.Bot().Send(c.Recipient(),
+			fmt.Sprintf("%s\n🆔 <b>GID:</b> <code>%s</code>\n📁 <b>File:</b> <code>%s</code>\n👤 <b>Pengguna:</b> @%s",
+				headerText, gid, initialName, sender),
 			inlineMarkup,
 			&tele.SendOptions{ParseMode: tele.ModeHTML},
 		)
 
-		go processMirrorLifecycle(b, c.Recipient(), initialMsg, gid, config.AppConfig.RclonePath, inlineMarkup)
+		go processMirrorLifecycle(b, c.Recipient(), initialMsg, gid, config.AppConfig.RclonePath, isLeech, parsed.IsZip, parsed.IsExtract, inlineMarkup)
 		return nil
 	}))
 }
 
-// processMirrorLifecycle memantau download secara live -> upload -> cleanup
-func processMirrorLifecycle(b *tele.Bot, recipient tele.Recipient, statusMsg *tele.Message, gid string, rcloneDest string, markup *tele.ReplyMarkup) {
-	ticker := time.NewTicker(3 * time.Second) // Update tiap 3 detik untuk mencegah Telegram Rate Limit
+// processMirrorLifecycle memantau download secara live -> post-process (zip/extract) -> upload (rclone/telegram) -> cleanup
+func processMirrorLifecycle(b *tele.Bot, recipient tele.Recipient, statusMsg *tele.Message, gid string, rcloneDest string, isLeech bool, isZip bool, isExtract bool, markup *tele.ReplyMarkup) {
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
 	var filePath string
@@ -331,7 +362,7 @@ func processMirrorLifecycle(b *tele.Bot, recipient tele.Recipient, statusMsg *te
 			continue
 		}
 
-		// Handle perpindahan metadata magnet ke download utama jika ada
+		// Handle transisi metadata magnet
 		if len(st.FollowedBy) > 0 {
 			activeGID = st.FollowedBy[0]
 			log.Printf("[INFO] Transisi metadata magnet ke download utama GID: %s", activeGID)
@@ -366,7 +397,7 @@ func processMirrorLifecycle(b *tele.Bot, recipient tele.Recipient, statusMsg *te
 			t.Progress = float64(completed) / float64(total) * 100.0
 		}
 
-		// Live Message Update saat proses download masih aktif
+		// Update pesan live
 		if st.Status == "active" && total > 0 && statusMsg != nil {
 			bar := task.GenerateProgressBar(t.Progress)
 			newText := fmt.Sprintf(
@@ -383,53 +414,92 @@ func processMirrorLifecycle(b *tele.Bot, recipient tele.Recipient, statusMsg *te
 
 			if newText != lastStatusText {
 				lastStatusText = newText
-				// Edit pesan live dengan tombol cancel
 				b.Edit(statusMsg, newText, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
 			}
 		}
 
-		// Selesai Download -> Mulai Upload Rclone
+		// Selesai Download -> Mulai Post-Processing & Upload
 		if st.Status == "complete" {
 			log.Printf("[INFO] Download GID %s selesai. Path: %s", activeGID, filePath)
-			t.Status = "Uploading"
 			t.Progress = 100.0
 
-			if statusMsg != nil {
-				b.Edit(statusMsg, fmt.Sprintf(
-					"📤 <b>Unduhan Selesai!</b>\n"+
-						"📁 <b>File:</b> <code>%s</code>\n"+
-						"📦 <b>Ukuran:</b> %s\n"+
-						"🚀 <i>Sedang mengunggah ke Cloud Storage...</i>",
-					fileName, core.FormatBytes(totalSize),
-				), &tele.SendOptions{ParseMode: tele.ModeHTML})
-			}
-
-			// Jalankan upload Rclone
-			uploadErr := uploader.UploadFile(filePath, rcloneDest, nil)
-			if uploadErr != nil {
-				t.Status = "Error"
-				t.ErrorMessage = uploadErr.Error()
-				b.Send(recipient, fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", uploadErr), &tele.SendOptions{ParseMode: tele.ModeHTML})
-			} else {
-				t.Status = "Completed"
-				destText := rcloneDest
-				if destText == "" {
-					destText = "Disimpan di server (RCLONE_PATH belum diset)"
+			// 1. Ekstraksi otomatis jika flag -e aktif
+			if isExtract && core.IsArchive(filePath) {
+				if statusMsg != nil {
+					b.Edit(statusMsg, "📦 <b>Mengekstrak arsip...</b> Mohon tunggu.", &tele.SendOptions{ParseMode: tele.ModeHTML})
 				}
-				b.Send(recipient, fmt.Sprintf(
-					"✅ <b>Mirror Berhasil!</b>\n\n"+
-						"📁 <b>File:</b> <code>%s</code>\n"+
-						"📦 <b>Ukuran:</b> <code>%s</code>\n"+
-						"☁️ <b>Tujuan:</b> <code>%s</code>\n"+
-						"👤 <b>Pengguna:</b> %s",
-					fileName,
-					core.FormatBytes(totalSize),
-					destText,
-					t.User,
-				), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				extractedPath, extErr := core.ExtractArchive(filePath)
+				if extErr == nil {
+					filePath = extractedPath
+					fileName = filepath.Base(filePath)
+				} else {
+					log.Printf("[WARN] Gagal mengekstrak: %v", extErr)
+				}
 			}
 
-			// Bersihkan file lokal & task
+			// 2. Kompresi zip jika flag -z aktif
+			if isZip {
+				if statusMsg != nil {
+					b.Edit(statusMsg, "🗜 <b>Mengompres ke ZIP...</b> Mohon tunggu.", &tele.SendOptions{ParseMode: tele.ModeHTML})
+				}
+				zipPath, zipErr := core.CompressToZip(filePath)
+				if zipErr == nil {
+					filePath = zipPath
+					fileName = filepath.Base(filePath)
+				} else {
+					log.Printf("[WARN] Gagal mengompres: %v", zipErr)
+				}
+			}
+
+			// 3. Eksekusi Leech (Telegram) atau Mirror (Cloud Rclone)
+			if isLeech {
+				t.Status = "Leeching ke Telegram"
+				if statusMsg != nil {
+					b.Edit(statusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <b>File:</b> <code>%s</code>\n🚀 <i>Sedang mengirim ke Telegram...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				}
+
+				leechErr := uploader.LeechToTelegram(b, recipient, filePath, t.User)
+				if leechErr != nil {
+					t.Status = "Error"
+					t.ErrorMessage = leechErr.Error()
+					b.Send(recipient, fmt.Sprintf("❌ <b>Leech Gagal:</b> %v", leechErr), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				} else {
+					t.Status = "Completed"
+					b.Send(recipient, fmt.Sprintf("✅ <b>Leech Berhasil!</b>\n📁 <code>%s</code> telah dikirim ke obrolan.", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				}
+			} else {
+				// Mirror ke Cloud via Rclone
+				t.Status = "Uploading ke Cloud"
+				if statusMsg != nil {
+					b.Edit(statusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <b>File:</b> <code>%s</code>\n🚀 <i>Sedang mengunggah ke Cloud Storage...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				}
+
+				uploadErr := uploader.UploadFile(filePath, rcloneDest, nil)
+				if uploadErr != nil {
+					t.Status = "Error"
+					t.ErrorMessage = uploadErr.Error()
+					b.Send(recipient, fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", uploadErr), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				} else {
+					t.Status = "Completed"
+					destText := rcloneDest
+					if destText == "" {
+						destText = "Disimpan di server (RCLONE_PATH belum diset)"
+					}
+					b.Send(recipient, fmt.Sprintf(
+						"✅ <b>Mirror Berhasil!</b>\n\n"+
+							"📁 <b>File:</b> <code>%s</code>\n"+
+							"📦 <b>Ukuran:</b> <code>%s</code>\n"+
+							"☁️ <b>Tujuan:</b> <code>%s</code>\n"+
+							"👤 <b>Pengguna:</b> %s",
+						fileName,
+						core.FormatBytes(totalSize),
+						destText,
+						t.User,
+					), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				}
+			}
+
+			// Bersihkan file lokal & hapus dari task manager
 			uploader.CleanLocal(filePath)
 			task.TaskMgr.Remove(activeGID)
 			task.TaskMgr.Remove(gid)
