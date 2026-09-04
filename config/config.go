@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -41,6 +42,12 @@ func LoadConfig() {
 	downloadDir := os.Getenv("DOWNLOAD_DIR")
 	if downloadDir == "" {
 		downloadDir = "downloads"
+	}
+
+	// Wajib konversi ke absolute path agar aria2 tidak mencoba menulis ke / (root)
+	absDownloadDir, err := filepath.Abs(downloadDir)
+	if err == nil {
+		downloadDir = absDownloadDir
 	}
 
 	rclonePath := os.Getenv("RCLONE_PATH")

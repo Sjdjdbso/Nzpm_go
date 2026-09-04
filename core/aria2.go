@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -66,7 +67,6 @@ type AriaStatus struct {
 	ErrorMessage    string     `json:"errorMessage"`
 }
 
-// Call melakukan HTTP POST request ke JSON-RPC server Aria2
 func (c *AriaClient) Call(method string, params []interface{}, result interface{}) error {
 	reqBody := RPCRequest{
 		JSONRPC: "2.0",
@@ -107,10 +107,13 @@ func (c *AriaClient) Call(method string, params []interface{}, result interface{
 	return nil
 }
 
-// AddURI menambahkan URL download baru ke Aria2
 func (c *AriaClient) AddURI(uri string, dir string, filename string) (string, error) {
 	options := map[string]interface{}{}
 	if dir != "" {
+		absDir, err := filepath.Abs(dir)
+		if err == nil {
+			dir = absDir
+		}
 		options["dir"] = dir
 	}
 	if filename != "" {
@@ -127,7 +130,6 @@ func (c *AriaClient) AddURI(uri string, dir string, filename string) (string, er
 	return gid, err
 }
 
-// TellStatus mengambil status detail unduhan berdasarkan GID
 func (c *AriaClient) TellStatus(gid string) (*AriaStatus, error) {
 	params := []interface{}{
 		gid,
@@ -142,13 +144,11 @@ func (c *AriaClient) TellStatus(gid string) (*AriaStatus, error) {
 	return &status, nil
 }
 
-// Remove membatalkan/menghapus tugas download
 func (c *AriaClient) Remove(gid string) error {
 	var res string
 	return c.Call("aria2.forceRemove", []interface{}{gid}, &res)
 }
 
-// Helper format ukuran byte ke format manusia (KB, MB, GB)
 func FormatBytes(b int64) string {
 	const unit = 1024
 	if b < unit {
@@ -162,12 +162,10 @@ func FormatBytes(b int64) string {
 	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// Helper format kecepatan download
 func FormatSpeed(bytesPerSec int64) string {
 	return fmt.Sprintf("%s/s", FormatBytes(bytesPerSec))
 }
 
-// Helper kalkulasi ETA
 func CalculateETA(total, completed, speed int64) string {
 	if speed <= 0 || completed >= total {
 		return "0s"
