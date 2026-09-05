@@ -28,6 +28,7 @@ RUN apk add --no-cache \
 # Salin binary dari stage builder & skrip runner
 COPY --from=builder /app/go-mirror-bot .
 COPY aria.sh start.sh ./
+COPY config*.env ./
 RUN chmod +x aria.sh start.sh
 
 # Port default untuk HTTP Health Check Koyeb
