@@ -1,0 +1,8 @@
+downloads/
+thumbnails/
+scratch/
+go-mirror-bot
+*.log
+*.torrent
+*.aria2
+.git
