@@ -155,6 +155,22 @@ func NewGoogleDriveHelper() (*GoogleDriveHelper, error) {
 	// 2. Check token.json
 	tokenJsonPath := "token.json"
 	if _, err := os.Stat(tokenJsonPath); os.IsNotExist(err) {
+		// Coba muat dari environment variable GDRIVE_TOKEN_JSON / TOKEN_JSON jika ada
+		envToken := os.Getenv("GDRIVE_TOKEN_JSON")
+		if envToken == "" {
+			envToken = os.Getenv("TOKEN_JSON")
+		}
+		if envToken != "" {
+			_ = os.WriteFile(tokenJsonPath, []byte(envToken), 0644)
+			log.Println("[INFO] token.json berhasil dibuat dari environment variable")
+		}
+
+		// Coba pulihkan dari MongoDB Atlas jika belum ada di disk
+		if _, err := os.Stat(tokenJsonPath); os.IsNotExist(err) && ext_utils.DB != nil {
+			_ = ext_utils.DB.RestoreBotFile("token.json")
+			_ = ext_utils.DB.RestoreBotFile("token.pickle")
+		}
+
 		// Try converting token.pickle if available
 		if _, err := os.Stat("token.pickle"); err == nil {
 			log.Println("[INFO] token.json tidak ditemukan, mengonversi token.pickle otomatis...")

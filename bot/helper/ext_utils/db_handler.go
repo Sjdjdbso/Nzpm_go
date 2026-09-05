@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -125,14 +126,14 @@ func (m *DbManager) DbLoad() {
 			}
 
 			// Simpan thumbnail binary ke file lokal jika ada di MongoDB
-			if thumbBin, ok := doc["thumb"].([]byte); ok && len(thumbBin) > 0 {
+			if thumbBin := extractBinary(doc["thumb"]); len(thumbBin) > 0 {
 				thumbPath := filepath.Join("thumbnails", fmt.Sprintf("%d.jpg", uid))
 				_ = os.WriteFile(thumbPath, thumbBin, 0644)
 				uCfg.HasThumbnail = true
 			}
 
 			// Simpan per-user rclone.conf binary jika ada di MongoDB
-			if rcloneBin, ok := doc["rclone"].([]byte); ok && len(rcloneBin) > 0 {
+			if rcloneBin := extractBinary(doc["rclone"]); len(rcloneBin) > 0 {
 				rcPath := filepath.Join("rclone", fmt.Sprintf("%d.conf", uid))
 				_ = os.WriteFile(rcPath, rcloneBin, 0644)
 			}
@@ -146,6 +147,94 @@ func (m *DbManager) DbLoad() {
 			log.Printf("[MONGODB] Berhasil memuat %d data pengaturan pengguna dari Database", count)
 		}
 	}
+
+	// 2. Sinkronisasi file privat bot (token.json, token.pickle, rclone.conf)
+	m.SyncBotFiles(ctx)
+}
+
+func extractBinary(val any) []byte {
+	if val == nil {
+		return nil
+	}
+	switch v := val.(type) {
+	case []byte:
+		return v
+	case primitive.Binary:
+		return v.Data
+	case string:
+		return []byte(v)
+	}
+	return nil
+}
+
+// SyncBotFiles membackup file privat bot ke MongoDB Atlas atau memulihkannya jika belum ada di disk lokal
+func (m *DbManager) SyncBotFiles(ctx context.Context) {
+	if m == nil || m.db == nil {
+		return
+	}
+
+	targets := []string{"token.json", "token.pickle", "rclone.conf"}
+	collections := []string{"bot_files." + m.botID, "bot_files"}
+
+	for _, filename := range targets {
+		// 1. Jika ada di lokal, backup / update ke MongoDB
+		if data, err := os.ReadFile(filename); err == nil && len(data) > 0 {
+			doc := bson.M{
+				"_id":        filename,
+				"filename":   filename,
+				"data":       data,
+				"size":       len(data),
+				"updated_at": time.Now(),
+			}
+			opts := options.Update().SetUpsert(true)
+			for _, colName := range collections {
+				_, _ = m.db.Collection(colName).UpdateByID(ctx, filename, bson.M{"$set": doc}, opts)
+			}
+			log.Printf("[MONGODB] Berhasil backup file bot '%s' (%d bytes) ke MongoDB Atlas", filename, len(data))
+		} else {
+			// 2. Jika belum ada di disk lokal, pulihkan dari MongoDB Atlas
+			for _, colName := range collections {
+				var doc bson.M
+				if err := m.db.Collection(colName).FindOne(ctx, bson.M{"_id": filename}).Decode(&doc); err == nil {
+					if binData := extractBinary(doc["data"]); len(binData) > 0 {
+						if err := os.WriteFile(filename, binData, 0644); err == nil {
+							log.Printf("[MONGODB] Berhasil memulihkan file bot '%s' (%d bytes) dari koleksi '%s'", filename, len(binData), colName)
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// RestoreBotFile secara sinkron memulihkan file bot tertentu dari MongoDB jika belum ada di disk lokal
+func (m *DbManager) RestoreBotFile(filename string) error {
+	if m == nil || m.db == nil {
+		return fmt.Errorf("MongoDB client tidak terhubung")
+	}
+
+	if _, err := os.Stat(filename); err == nil {
+		return nil // Sudah ada di disk lokal
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	collections := []string{"bot_files." + m.botID, "bot_files"}
+	for _, colName := range collections {
+		var doc bson.M
+		if err := m.db.Collection(colName).FindOne(ctx, bson.M{"_id": filename}).Decode(&doc); err == nil {
+			if binData := extractBinary(doc["data"]); len(binData) > 0 {
+				if err := os.WriteFile(filename, binData, 0644); err == nil {
+					log.Printf("[MONGODB] Berhasil memulihkan file bot '%s' (%d bytes) dari koleksi '%s'", filename, len(binData), colName)
+					return nil
+				}
+			}
+		}
+	}
+
+	return fmt.Errorf("file %s tidak ditemukan di MongoDB Atlas", filename)
 }
 
 // UpdateUserData menyimpan pengaturan pengguna ke MongoDB
