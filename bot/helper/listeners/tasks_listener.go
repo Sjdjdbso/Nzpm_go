@@ -89,11 +89,54 @@ func (l *MirrorLeechListener) ProcessCompletedDownload(filePath string, totalSiz
 			l.Bot.Send(l.Recipient, themes.FormatCompleteMsg(fileName, totalSize, "Leech", "", t.User), &tele.SendOptions{ParseMode: tele.ModeHTML})
 		}
 	} else {
-		// Cek jika target upload adalah DDL (Pixeldrain)
 		destLower := strings.ToLower(l.RcloneDest)
 		isDDL := destLower == "ddl" || destLower == "pixeldrain" || (destLower == "" && (bot.ConfigDict.DefaultUpload == "ddl" || bot.ConfigDict.DefaultUpload == "pixeldrain"))
+		isGD := destLower == "gd" || destLower == "gdrive" || (destLower == "" && (bot.ConfigDict.DefaultUpload == "gd" || bot.ConfigDict.DefaultUpload == "gdrive"))
 
-		if isDDL {
+		if isGD {
+			t.Status = "Uploading (GDrive)"
+			if l.StatusMsg != nil {
+				l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Google Drive...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+			}
+
+			gdHelper, err := upload_utils.NewGoogleDriveHelper()
+			if err != nil {
+				l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Google Drive Auth Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+			} else {
+				upLink, upSize, mimeType, err := gdHelper.Upload(filePath, bot.ConfigDict.GdriveID, func(processed, total int64) {
+					if total > 0 {
+						t.CompletedSize = processed
+						t.Progress = float64(processed) / float64(total) * 100
+					}
+				})
+				if err != nil {
+					l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>GDrive Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				} else {
+					markup := &tele.ReplyMarkup{}
+					btnURL := markup.URL("🔗 Google Drive", upLink)
+					var rows []tele.Row
+					if bot.ConfigDict.IndexURL != "" {
+						idxURL := strings.TrimRight(bot.ConfigDict.IndexURL, "/") + "/" + fileName
+						btnIdx := markup.URL("⚡ Index Link", idxURL)
+						rows = append(rows, markup.Row(btnURL, btnIdx))
+					} else {
+						rows = append(rows, markup.Row(btnURL))
+					}
+					markup.Inline(rows...)
+
+					completeText := fmt.Sprintf(
+						"<b><i>Mirror GDrive Selesai!</i></b>\n\n"+
+							"➲ <b>File:</b> <code>%s</code>\n"+
+							"┠ <b>Size:</b> <code>%s</code>\n"+
+							"┠ <b>Type:</b> <code>%s</code>\n"+
+							"┠ <b>Link:</b> <a href=\"%s\">Google Drive</a>\n"+
+							"┖ <b>By:</b> %s",
+						fileName, ext_utils.FormatBytes(upSize), mimeType, upLink, t.User,
+					)
+					l.Bot.Send(l.Recipient, completeText, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
+				}
+			}
+		} else if isDDL {
 			t.Status = "Uploading (DDL)"
 			if l.StatusMsg != nil {
 				l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Pixeldrain (DDL)...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})

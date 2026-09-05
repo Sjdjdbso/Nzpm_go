@@ -13,6 +13,7 @@ import (
 	"go-mirror-bot/bot/helper/ext_utils"
 	"go-mirror-bot/bot/helper/listeners"
 	"go-mirror-bot/bot/helper/mirror_utils/download_utils"
+	"go-mirror-bot/bot/helper/mirror_utils/upload_utils"
 	"go-mirror-bot/bot/helper/telegram_helper"
 	"go-mirror-bot/bot/helper/themes"
 
@@ -300,7 +301,86 @@ func InitMirrorLeech(b *tele.Bot) {
 			return nil
 		}
 
-		// 3. Direct Link Generator (GDrive, Mediafire, Pixeldrain, Solidfiles, Dropbox, dll)
+		// 3. Google Drive Download (Native API & Service Account)
+		if ext_utils.IsGDriveLink(args.Link) {
+			gid := fmt.Sprintf("gd_%d", time.Now().UnixNano()%1000000)
+			initialName := args.CustomName
+			if initialName == "" {
+				initialName = "Unduhan Google Drive..."
+			}
+
+			t := &ext_utils.Task{
+				GID:       gid,
+				Name:      initialName,
+				Status:    "Downloading",
+				Mode:      modeStr,
+				Engine:    "Google Drive",
+				User:      "@" + sender,
+				UserID:    c.Sender().ID,
+				StartTime: time.Now(),
+			}
+			ext_utils.TaskMgr.Add(t)
+
+			markup := &tele.ReplyMarkup{}
+			btnCancel := markup.Data("⛔ Batalkan", "cancel_task", gid)
+			markup.Inline(markup.Row(btnCancel))
+
+			header := fmt.Sprintf("<b><i>GDrive Task Started</i></b>\n┠ <b>Mode:</b> %s\n┖ <b>By:</b> @%s\n\n➲ <b>Link:</b> <code>%s</code>\n➲ <b>GID:</b> <code>%s</code>",
+				modeStr, sender, args.Link, gid)
+			statusMsg, _ := c.Bot().Send(c.Recipient(), header, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
+
+			listener := &listeners.MirrorLeechListener{
+				Bot:        b,
+				Recipient:  c.Recipient(),
+				StatusMsg:  statusMsg,
+				GID:        gid,
+				RcloneDest: rcloneDest,
+				IsLeech:    isLeech,
+				IsZip:      args.IsZip,
+				IsExtract:  args.IsExtract,
+				Markup:     markup,
+			}
+
+			go func() {
+				gdHelper, err := upload_utils.NewGoogleDriveHelper()
+				if err != nil {
+					c.Bot().Edit(statusMsg, fmt.Sprintf("❌ <b>Google Drive Auth Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+					ext_utils.TaskMgr.Remove(gid)
+					return
+				}
+
+				name, _, totalBytes, _, _, err := gdHelper.Count(args.Link)
+				if err == nil && name != "" {
+					t.Name = name
+					t.TotalSize = totalBytes
+				}
+
+				outDir := filepath.Join("downloads", gid)
+				downloadedPath, err := gdHelper.Download(args.Link, outDir, func(processed, total int64) {
+					t.CompletedSize = processed
+					if t.TotalSize > 0 {
+						t.Progress = float64(processed) / float64(t.TotalSize) * 100
+					}
+				})
+
+				if err != nil {
+					c.Bot().Edit(statusMsg, fmt.Sprintf("❌ <b>GDrive Download Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
+					ext_utils.TaskMgr.Remove(gid)
+					return
+				}
+
+				var totalSize int64
+				if fi, err := os.Stat(downloadedPath); err == nil {
+					totalSize = fi.Size()
+				}
+				t.Name = filepath.Base(downloadedPath)
+				listener.ProcessCompletedDownload(downloadedPath, totalSize, t)
+			}()
+
+			return nil
+		}
+
+		// 4. Direct Link Generator (Mediafire, Pixeldrain, Solidfiles, Dropbox, dll)
 		resolvedURL, resolvedName, ddlErr := download_utils.DirectLinkGenerator(args.Link)
 		if ddlErr != nil {
 			return c.Send(fmt.Sprintf("❌ <b>Gagal Memproses Link:</b> %v", ddlErr), &tele.SendOptions{ParseMode: tele.ModeHTML})

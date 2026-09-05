@@ -7,6 +7,7 @@ config.env
 .env
 accounts/
 token.pickle
+token.json
 
 # Temporary downloads
 downloads/

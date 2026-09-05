@@ -57,9 +57,18 @@ type MirrorArgs struct {
 	Link         string
 	CustomName   string
 	CustomRemote string
+	UploadDest   string
 	IsMagnet     bool
 	IsZip        bool
 	IsExtract    bool
+}
+
+func IsGDriveLink(url string) bool {
+	return strings.Contains(url, "drive.google.com")
+}
+
+func IsRclonePath(path string) bool {
+	return strings.Contains(path, ":") && !strings.Contains(path, "://")
 }
 
 // ArgParser mem-parsing command options persis wzv3
@@ -88,8 +97,9 @@ func ArgParser(rawText string) MirrorArgs {
 		if w == "-n" && i+1 < len(words) {
 			res.CustomName = words[i+1]
 			i++
-		} else if w == "-rc" && i+1 < len(words) {
+		} else if (w == "-rc" || w == "-up") && i+1 < len(words) {
 			res.CustomRemote = words[i+1]
+			res.UploadDest = words[i+1]
 			i++
 		} else if w == "-z" {
 			res.IsZip = true

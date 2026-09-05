@@ -23,6 +23,13 @@ type Config struct {
 	RclonePath        string
 	DefaultUpload     string // DEFAULT_UPLOAD ("rc", "ddl", "pixeldrain", "gd")
 	PixeldrainAPI     string // PIXELDRAIN_API
+	GdriveID          string // GDRIVE_ID
+	IndexURL          string // INDEX_URL
+	UseServiceAccounts bool   // USE_SERVICE_ACCOUNTS
+	IsTeamDrive       bool   // IS_TEAM_DRIVE
+	StopDuplicate     bool   // STOP_DUPLICATE
+	DisableDriveLink  bool   // DISABLE_DRIVE_LINK
+	GDInfo            string // GD_INFO
 	CmdSuffix         string
 	Port              string
 	mu                sync.RWMutex
@@ -76,21 +83,38 @@ func LoadConfig() {
 	}
 
 	pixeldrainAPI := os.Getenv("PIXELDRAIN_API")
+	gdriveID := os.Getenv("GDRIVE_ID")
+	indexURL := os.Getenv("INDEX_URL")
+	useServiceAccounts, _ := strconv.ParseBool(os.Getenv("USE_SERVICE_ACCOUNTS"))
+	isTeamDrive, _ := strconv.ParseBool(os.Getenv("IS_TEAM_DRIVE"))
+	stopDuplicate, _ := strconv.ParseBool(os.Getenv("STOP_DUPLICATE"))
+	disableDriveLink, _ := strconv.ParseBool(os.Getenv("DISABLE_DRIVE_LINK"))
+	gdInfo := os.Getenv("GD_INFO")
+	if gdInfo == "" {
+		gdInfo = "Uploaded by WZML-X Go"
+	}
 
 	ConfigDict = Config{
-		BotToken:          botToken,
-		TelegramAPI:       telegramAPI,
-		TelegramHash:      telegramHash,
-		UserSessionString: userSession,
-		OwnerID:           ownerID,
-		AuthorizedChats:   make(map[int64]bool),
-		SudoUsers:         make(map[int64]bool),
-		DownloadDir:       downloadDir,
-		RclonePath:        os.Getenv("RCLONE_PATH"),
-		DefaultUpload:     defaultUpload,
-		PixeldrainAPI:     pixeldrainAPI,
-		CmdSuffix:         os.Getenv("CMD_SUFFIX"),
-		Port:              port,
+		BotToken:           botToken,
+		TelegramAPI:        telegramAPI,
+		TelegramHash:       telegramHash,
+		UserSessionString:  userSession,
+		OwnerID:            ownerID,
+		AuthorizedChats:    make(map[int64]bool),
+		SudoUsers:          make(map[int64]bool),
+		DownloadDir:        downloadDir,
+		RclonePath:         os.Getenv("RCLONE_PATH"),
+		DefaultUpload:      defaultUpload,
+		PixeldrainAPI:      pixeldrainAPI,
+		GdriveID:           gdriveID,
+		IndexURL:           indexURL,
+		UseServiceAccounts: useServiceAccounts,
+		IsTeamDrive:        isTeamDrive,
+		StopDuplicate:      stopDuplicate,
+		DisableDriveLink:   disableDriveLink,
+		GDInfo:             gdInfo,
+		CmdSuffix:          os.Getenv("CMD_SUFFIX"),
+		Port:               port,
 	}
 
 	// Parse AUTHORIZED_CHATS

@@ -14,6 +14,9 @@ type BotCommandsType struct {
 	YtdlZipLeech       []string
 	CloneCommand       []string
 	CountCommand       string
+	DeleteCommand      []string
+	ListCommand        []string
+	GDCleanCommand     []string
 	CancelCommand      []string
 	CancelAllCommand   string
 	StatusCommand      []string
@@ -46,6 +49,9 @@ var BotCommands = BotCommandsType{
 	YtdlZipLeech:       []string{"/ytdlzipleech", "/yzl"},
 	CloneCommand:       []string{"/clone", "/c"},
 	CountCommand:       "/count",
+	DeleteCommand:      []string{"/del", "/delete", "/gddel"},
+	ListCommand:        []string{"/list", "/search"},
+	GDCleanCommand:     []string{"/gdclean", "/gc"},
 	CancelCommand:      []string{"/cancel", "/stop"},
 	CancelAllCommand:   "/cancelall",
 	StatusCommand:      []string{"/status", "/s", "/statusall"},

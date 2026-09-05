@@ -22,6 +22,7 @@ Arsitektur bot ini telah di-rebuild secara **1:1 persis mengikuti struktur direk
 | `bot/helper/mirror_utils/download_utils/mega_download.py` | `bot/helper/mirror_utils/download_utils/mega_download.go` | Downloader Mega.nz via megatools CLI |
 | `bot/helper/mirror_utils/download_utils/telegram_download.py` | `bot/modules/mirror_leech.go` (Integrated) | Unduh media Telegram (Doc/Video/Audio/Photo) dengan live status |
 | `bot/helper/mirror_utils/download_utils/yt_dlp_download.py` | `bot/helper/mirror_utils/download_utils/yt_dlp_download.go` | Downloader YT-DLP ratusan situs video/audio |
+| `bot/helper/mirror_utils/upload_utils/gdriveTools.py` | `bot/helper/mirror_utils/upload_utils/gdrive_tools.go` | Native Google Drive API v3 (Auth rotation, token.json/pickle, Service Accounts `accounts/`, Upload, Download, Clone, Count, Delete, List, Clean) |
 | `bot/helper/mirror_utils/upload_utils/rclone_transfer.py` | `bot/helper/mirror_utils/upload_utils/rclone_transfer.go` | Uploader Rclone ke Google Drive & Cloud storage |
 | `bot/helper/mirror_utils/upload_utils/ddlserver/pixeldrain.py` | `bot/helper/mirror_utils/upload_utils/ddlserver/pixeldrain.go` | Uploader Pixeldrain DDL API (`https://pixeldrain.com/u/...`) |
 | `bot/helper/mirror_utils/upload_utils/pyrogramEngine.py` | `bot/helper/mirror_utils/upload_utils/tg_uploader.go` | Telegram Leech engine, auto-splitter & custom thumbnail/caption |
@@ -30,9 +31,13 @@ Arsitektur bot ini telah di-rebuild secara **1:1 persis mengikuti struktur direk
 | `bot/helper/telegram_helper/bot_commands.py` | `bot/helper/telegram_helper/bot_commands.go` | Definisi seluruh perintah & alias WZML |
 | `bot/helper/telegram_helper/filters.py` | `bot/helper/telegram_helper/filters.go` | Middleware proteksi autorisasi (`AuthGuard`, `SudoGuard`) |
 | `bot/helper/themes/wzml_minimal.py` | `bot/helper/themes/wzml_minimal.go` | Tampilan tema WZML (bar `■■■□□`, pohon status, stats server) |
-| `bot/modules/mirror_leech.py` | `bot/modules/mirror_leech.go` | Handlers: `/mirror`, `/leech`, `/zm`, `/zl`, `/uzm`, `/uzl`, torrent, TG Media, DDL Pixeldrain |
+| `bot/modules/mirror_leech.py` | `bot/modules/mirror_leech.go` | Handlers: `/mirror`, `/leech`, `/zm`, `/zl`, `/uzm`, `/uzl`, native GDrive dl, torrent, TG Media, DDL Pixeldrain |
 | `bot/modules/ytdlp.py` | `bot/modules/ytdlp.go` | Handlers: `/ytdl`, `/y`, `/ytdlleech`, `/yl`, `/yz`, `/yzl` + DDL upload support |
-| `bot/modules/clone.py` & `gd_count.py`| `bot/modules/clone.go` | Handlers: `/clone`, `/c`, `/count` |
+| `bot/modules/clone.py` | `bot/modules/clone.go` | Handlers: `/clone`, `/c` (Native Google Drive server-side clone & Rclone clone) |
+| `bot/modules/gd_count.py` | `bot/modules/gd_count.go` | Handlers: `/count` (GDrive native recursive count & Rclone count) |
+| `bot/modules/gd_delete.py` | `bot/modules/gd_delete.go` | Handlers: `/del`, `/delete`, `/gddel` (Hapus file/folder Google Drive) |
+| `bot/modules/gd_list.py` | `bot/modules/gd_list.go` | Handlers: `/list`, `/search` (Cari file/folder di Google Drive) |
+| `bot/modules/gd_clean.py` | `bot/modules/gd_clean.go` | Handlers: `/gdclean`, `/gc` (Bersihkan drive / kosongkan tempat sampah) |
 | `bot/modules/status.py` | `bot/modules/status.go` | Handlers: `/status`, `/s`, `/statusall` + tombol refresh |
 | `bot/modules/cancel_mirror.py` | `bot/modules/cancel_mirror.go` | Handlers: `/cancel`, `/stop`, `/cancelall` + tombol cancel |
 | `bot/modules/authorize.py` | `bot/modules/authorize.go` | Handlers: `/authorize`, `/a`, `/unauthorize`, `/ua`, `/authlist` |
