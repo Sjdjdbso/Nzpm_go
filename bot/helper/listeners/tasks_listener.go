@@ -167,11 +167,20 @@ func (l *MirrorLeechListener) ProcessCompletedDownload(filePath string, totalSiz
 				l.Bot.Send(l.Recipient, completeText, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
 			}
 		} else {
-			t.Status = "Uploading"
+			t.Status = "Uploading (Rclone)"
 			if l.StatusMsg != nil {
-				l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
+				l.Bot.Edit(l.StatusMsg, fmt.Sprintf("📤 <b>Unduhan Selesai!</b>\n📁 <code>%s</code>\n🚀 <i>Mengunggah ke Cloud via Rclone...</i>", fileName), &tele.SendOptions{ParseMode: tele.ModeHTML})
 			}
-			if err := upload_utils.RcloneTransfer(filePath, l.RcloneDest, nil); err != nil {
+			lastUpdate := time.Now()
+			userConf := upload_utils.GetUserRcloneConf(t.UserID)
+			if err := upload_utils.RcloneTransfer(filePath, l.RcloneDest, userConf, func(p upload_utils.RcloneProgress) {
+				t.Progress = p.Percentage
+				t.ETA = p.ETA
+				if time.Since(lastUpdate) >= 3*time.Second && l.StatusMsg != nil {
+					lastUpdate = time.Now()
+					l.Bot.Edit(l.StatusMsg, themes.FormatStatusMsg(t), l.Markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
+				}
+			}); err != nil {
 				l.Bot.Send(l.Recipient, fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
 			} else {
 				dest := l.RcloneDest

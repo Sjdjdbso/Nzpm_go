@@ -10,6 +10,9 @@ import (
 
 func AuthGuard(next tele.HandlerFunc) tele.HandlerFunc {
 	return func(c tele.Context) error {
+		if bot.ConfigDict.IsBlacklisted(c.Sender().ID) {
+			return nil
+		}
 		if !bot.ConfigDict.IsAuthorized(c.Sender().ID, c.Chat().ID) {
 			return c.Send("<i>You Are not authorized user! Deploy your own WZML-X Mirror-Leech bot</i>\n\n"+
 				fmt.Sprintf("ℹ️ <b>Chat ID:</b> <code>%d</code> | <b>User ID:</b> <code>%d</code>", c.Chat().ID, c.Sender().ID),

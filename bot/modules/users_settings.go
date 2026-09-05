@@ -2,9 +2,13 @@ package modules
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"go-mirror-bot/bot/helper/ext_utils"
+	"go-mirror-bot/bot/helper/mirror_utils/upload_utils"
 	"go-mirror-bot/bot/helper/mirror_utils/upload_utils/ddlserver"
 	"go-mirror-bot/bot/helper/telegram_helper"
 
@@ -42,6 +46,12 @@ func InitUsersSettings(b *tele.Bot) {
 			pdStatus = "✅ Kustom Pribadi"
 		}
 
+		rcStatus := "❌ Default Bot"
+		userRc := upload_utils.GetUserRcloneConf(userID)
+		if userRc != "" && strings.Contains(userRc, fmt.Sprintf("%d.conf", userID)) {
+			rcStatus = "✅ Kustom Pribadi"
+		}
+
 		text := fmt.Sprintf(
 			"⚙️ <b><i>PENGATURAN PENGGUNA (WZML-X)</i></b>\n"+
 				"┠ <b>User:</b> @%s (<code>%d</code>)\n"+
@@ -49,24 +59,27 @@ func InitUsersSettings(b *tele.Bot) {
 				"┠ <b>Custom Caption:</b> %s\n"+
 				"┠ <b>Leech Prefix:</b> %s\n"+
 				"┠ <b>Leech Suffix:</b> %s\n"+
-				"┖ <b>Pixeldrain API:</b> %s\n\n"+
+				"┠ <b>Pixeldrain API:</b> %s\n"+
+				"┖ <b>Rclone Conf:</b> %s\n\n"+
 				"💡 <i>Gunakan tombol di bawah atau perintah langsung:\n"+
 				"• Reply foto dengan /setthumb\n"+
+				"• Reply file rclone.conf dengan /setrclone\n"+
 				"• /setcaption &lt;teks&gt;\n"+
 				"• /setprefix &lt;teks&gt; | /setsuffix &lt;teks&gt;\n"+
 				"• /setpdapi &lt;api_key&gt; | /delpdapi</i>",
-			c.Sender().Username, userID, thumbStatus, captionStatus, prefixStatus, suffixStatus, pdStatus,
+			c.Sender().Username, userID, thumbStatus, captionStatus, prefixStatus, suffixStatus, pdStatus, rcStatus,
 		)
 
 		markup := &tele.ReplyMarkup{}
 		btnDelThumb := markup.Data("🗑 Hapus Thumbnail", "us_del_thumb")
 		btnDelCap := markup.Data("🗑 Reset Caption", "us_del_cap")
 		btnDelPd := markup.Data("🗑 Reset Pixeldrain API", "us_del_pd")
+		btnDelRc := markup.Data("🗑 Hapus Rclone Conf", "us_del_rc")
 		btnClose := markup.Data("❌ Tutup", "us_close")
 
 		markup.Inline(
 			markup.Row(btnDelThumb, btnDelCap),
-			markup.Row(btnDelPd),
+			markup.Row(btnDelPd, btnDelRc),
 			markup.Row(btnClose),
 		)
 
@@ -202,6 +215,77 @@ func InitUsersSettings(b *tele.Bot) {
 		return c.Send(fmt.Sprintf("🔑 <b>Pixeldrain API Key Anda:</b> <code>%s</code>", u.PixeldrainAPI), &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
+	// 8. /setrclone (Reply file rclone.conf)
+	handleSetRclone := telegram_helper.AuthGuard(func(c tele.Context) error {
+		userID := c.Sender().ID
+		var doc *tele.Document
+
+		if c.Message().ReplyTo != nil && c.Message().ReplyTo.Document != nil {
+			doc = c.Message().ReplyTo.Document
+		} else if c.Message().Document != nil {
+			doc = c.Message().Document
+		}
+
+		if doc == nil || !strings.HasSuffix(strings.ToLower(doc.FileName), ".conf") {
+			return c.Send("⚠️ Kirim atau balas file konfigurasi <code>rclone.conf</code> dengan perintah <code>/setrclone</code>.", &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+
+		reader, err := c.Bot().File(&doc.File)
+		if err != nil {
+			return c.Send(fmt.Sprintf("❌ Gagal mengunduh file config: %v", err))
+		}
+		defer reader.Close()
+
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return c.Send(fmt.Sprintf("❌ Gagal membaca file config: %v", err))
+		}
+
+		_ = os.MkdirAll("rclone", 0755)
+		userConfPath := filepath.Join("rclone", fmt.Sprintf("%d.conf", userID))
+		if err := os.WriteFile(userConfPath, data, 0644); err != nil {
+			return c.Send(fmt.Sprintf("❌ Gagal menyimpan file: %v", err))
+		}
+
+		if ext_utils.DB != nil {
+			go ext_utils.DB.UpdateUserRclone(userID, data)
+		}
+
+		remotes, _ := upload_utils.RcloneListRemotes(userConfPath)
+		remotesMsg := ""
+		if len(remotes) > 0 {
+			remotesMsg = fmt.Sprintf("\n\n📦 <b>Remote Terdeteksi:</b>\n<code>%s</code>", strings.Join(remotes, "\n"))
+		}
+
+		return c.Send(fmt.Sprintf("✅ <b>File rclone.conf pribadi berhasil disimpan!</b>%s\n\n💡 <i>Gunakan remote di atas saat menjalankan perintah /mirror -rc &lt;remote:folder&gt;</i>", remotesMsg), &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
+	// 9. /delrclone
+	handleDelRclone := telegram_helper.AuthGuard(func(c tele.Context) error {
+		userID := c.Sender().ID
+		userConfPath := filepath.Join("rclone", fmt.Sprintf("%d.conf", userID))
+		_ = os.Remove(userConfPath)
+		if ext_utils.DB != nil {
+			go ext_utils.DB.DeleteUserRclone(userID)
+		}
+		return c.Send("🗑 <b>File rclone.conf kustom Anda telah dihapus. Bot akan menggunakan konfigurasi default.</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
+	// 10. /myrclone
+	handleMyRclone := telegram_helper.AuthGuard(func(c tele.Context) error {
+		userID := c.Sender().ID
+		userConfPath := filepath.Join("rclone", fmt.Sprintf("%d.conf", userID))
+		if _, err := os.Stat(userConfPath); os.IsNotExist(err) {
+			return c.Send("ℹ️ Anda belum mengunggah file rclone.conf pribadi. Balas file rclone.conf dengan <code>/setrclone</code>.", &tele.SendOptions{ParseMode: tele.ModeHTML})
+		}
+		doc := &tele.Document{
+			File:     tele.FromDisk(userConfPath),
+			FileName: "rclone.conf",
+			Caption:  "📄 <i>File rclone.conf pribadi Anda.</i>",
+		}
+		return c.Send(doc, &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
 	// Button Callbacks
 	b.Handle(&tele.Btn{Unique: "us_del_thumb"}, func(c tele.Context) error {
 		userID := c.Sender().ID
@@ -222,6 +306,17 @@ func InitUsersSettings(b *tele.Bot) {
 		ext_utils.UserStore.SetPixeldrainAPI(userID, "")
 		_ = c.Respond(&tele.CallbackResponse{Text: "Pixeldrain API dihapus!"})
 		return c.Edit("🗑 <b>Pixeldrain API Key berhasil direset.</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
+	})
+
+	b.Handle(&tele.Btn{Unique: "us_del_rc"}, func(c tele.Context) error {
+		userID := c.Sender().ID
+		userConfPath := filepath.Join("rclone", fmt.Sprintf("%d.conf", userID))
+		_ = os.Remove(userConfPath)
+		if ext_utils.DB != nil {
+			go ext_utils.DB.DeleteUserRclone(userID)
+		}
+		_ = c.Respond(&tele.CallbackResponse{Text: "Rclone conf dihapus!"})
+		return c.Edit("🗑 <b>File rclone.conf kustom Anda berhasil dihapus.</b>", &tele.SendOptions{ParseMode: tele.ModeHTML})
 	})
 
 	b.Handle(&tele.Btn{Unique: "us_close"}, func(c tele.Context) error {
@@ -246,4 +341,8 @@ func InitUsersSettings(b *tele.Bot) {
 	b.Handle("/setpdapi", handleSetPdApi)
 	b.Handle("/delpdapi", handleDelPdApi)
 	b.Handle("/mypdapi", handleMyPdApi)
+
+	b.Handle("/setrclone", handleSetRclone)
+	b.Handle("/delrclone", handleDelRclone)
+	b.Handle("/myrclone", handleMyRclone)
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"go-mirror-bot/bot"
+	"go-mirror-bot/bot/helper/ext_utils"
 	"go-mirror-bot/bot/helper/mirror_utils/download_utils"
 	"go-mirror-bot/bot/helper/telegram_helper"
 	"go-mirror-bot/bot/modules"
@@ -19,6 +20,11 @@ func main() {
 
 	// 1. Muat Konfigurasi (bot/config.py)
 	bot.LoadConfig()
+
+	// 2. Inisialisasi Database MongoDB (bot/helper/ext_utils/db_handler.py)
+	if _, err := ext_utils.InitDB(bot.ConfigDict.DatabaseURL, bot.ConfigDict.BotID); err != nil {
+		log.Printf("[WARN] Gagal menghubungkan ke MongoDB: %v", err)
+	}
 
 	// 2. Jalankan Health Server & Aria2c (bot/startup.py)
 	bot.LaunchHealthServer(bot.ConfigDict.Port)
@@ -55,6 +61,7 @@ func main() {
 	modules.InitSpeedtest(b)
 	modules.InitMediaInfo(b)
 	modules.InitUsersSettings(b)
+	modules.InitRcloneList(b)
 	modules.InitBroadcast(b)
 	modules.InitRestart(b)
 	modules.InitBotSettings(b)

@@ -13,6 +13,9 @@ import (
 
 func InitStats(b *tele.Bot) {
 	b.Handle(telegram_helper.BotCommands.StartCommand, func(c tele.Context) error {
+		if c.Chat().Type == tele.ChatPrivate && ext_utils.DB != nil {
+			go ext_utils.DB.AddPMUser(c.Sender().ID)
+		}
 		msg := "<i>This bot can mirror all your links|files|torrents to Google Drive or any rclone cloud or to telegram.</i>\n\n" +
 			"<b>Type /help to get a list of available commands</b>"
 		return c.Send(msg, &tele.SendOptions{ParseMode: tele.ModeHTML})
@@ -20,8 +23,8 @@ func InitStats(b *tele.Bot) {
 
 	handleHelp := func(c tele.Context) error {
 		helpText := "㊂ <b><i>WZML-X Go Help Guide Menu!</i></b>\n\n" +
-			"<b>Aria2 & DDL Mirror / Leech:</b>\n" +
-			"• <code>/mirror</code>, <code>/m</code> - Direct Link, GDrive, MediaFire, Magnet, Torrent ke Cloud\n" +
+			"<b>Aria2, DDL & GDrive Mirror / Leech:</b>\n" +
+			"• <code>/mirror</code>, <code>/m</code> - Direct Link, GDrive, Mega, MediaFire, Magnet, Torrent ke Cloud\n" +
 			"• <code>/leech</code>, <code>/l</code> - Download & kirim langsung ke Telegram\n" +
 			"• <code>/zipmirror</code>, <code>/zm</code> | <code>/zipleech</code>, <code>/zl</code> - Kompres Zip\n" +
 			"• <code>/unzipmirror</code>, <code>/uzm</code> | <code>/unzipleech</code>, <code>/uzl</code> - Ekstrak Arsip\n\n" +
@@ -29,10 +32,16 @@ func InitStats(b *tele.Bot) {
 			"• <code>/ytdl</code>, <code>/y</code> - Unduh video/audio ke Cloud\n" +
 			"• <code>/ytdlleech</code>, <code>/yl</code> - Unduh video/audio ke Telegram\n" +
 			"• <code>/ytdlzip</code>, <code>/yz</code> | <code>/ytdlzipleech</code>, <code>/yzl</code>\n\n" +
-			"<b>Cloud & GDrive Tools:</b>\n" +
-			"• <code>/clone &lt;src&gt; &lt;dst&gt;</code>, <code>/c</code> - Salin antar remote Cloud\n" +
-			"• <code>/count &lt;remote:path&gt;</code> - Hitung total file & ukuran remote\n\n" +
-			"<b>Status & Admin:</b>\n" +
+			"<b>Cloud & Google Drive Tools:</b>\n" +
+			"• <code>/clone &lt;src&gt; &lt;dst&gt;</code>, <code>/c</code> - Salin GDrive-to-GDrive atau Remote Cloud\n" +
+			"• <code>/count &lt;link/remote&gt;</code> - Hitung total file & ukuran GDrive/Remote\n" +
+			"• <code>/del &lt;gdrive_link&gt;</code> - Hapus file/folder Google Drive\n" +
+			"• <code>/list &lt;query&gt;</code> - Cari file/folder di Google Drive\n" +
+			"• <code>/gdclean</code> - Bersihkan folder/sampah Google Drive (Sudo)\n\n" +
+			"<b>Pengaturan & Admin:</b>\n" +
+			"• <code>/usersettings</code>, <code>/us</code> - Kelola thumbnail, caption, prefix, API\n" +
+			"• <code>/authorize</code> | <code>/unauthorize</code> | <code>/authlist</code>\n" +
+			"• <code>/addsudo</code> | <code>/rmsudo</code> | <code>/blacklist</code> | <code>/rmblacklist</code>\n" +
 			"• <code>/status</code>, <code>/s</code> | <code>/cancel &lt;gid&gt;</code> | <code>/cancelall</code>\n" +
 			"• <code>/stats</code>, <code>/st</code> | <code>/ping</code>, <code>/p</code> | <code>/shell &lt;cmd&gt;</code>"
 		return c.Send(helpText, &tele.SendOptions{ParseMode: tele.ModeHTML})

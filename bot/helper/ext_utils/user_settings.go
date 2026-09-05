@@ -97,6 +97,9 @@ func (s *UserSettingsStore) SetCaption(userID int64, caption string) {
 	}
 	u.CustomCaption = caption
 	s.save()
+	if DB != nil {
+		go DB.UpdateUserData(userID, u)
+	}
 }
 
 func (s *UserSettingsStore) SetPrefix(userID int64, prefix string) {
@@ -110,6 +113,9 @@ func (s *UserSettingsStore) SetPrefix(userID int64, prefix string) {
 	}
 	u.LeechPrefix = prefix
 	s.save()
+	if DB != nil {
+		go DB.UpdateUserData(userID, u)
+	}
 }
 
 func (s *UserSettingsStore) SetSuffix(userID int64, suffix string) {
@@ -123,6 +129,9 @@ func (s *UserSettingsStore) SetSuffix(userID int64, suffix string) {
 	}
 	u.LeechSuffix = suffix
 	s.save()
+	if DB != nil {
+		go DB.UpdateUserData(userID, u)
+	}
 }
 
 func (s *UserSettingsStore) SetPixeldrainAPI(userID int64, apiKey string) {
@@ -136,6 +145,9 @@ func (s *UserSettingsStore) SetPixeldrainAPI(userID int64, apiKey string) {
 	}
 	u.PixeldrainAPI = apiKey
 	s.save()
+	if DB != nil {
+		go DB.UpdateUserData(userID, u)
+	}
 }
 
 func (s *UserSettingsStore) SaveThumbnail(userID int64, src io.Reader) error {
@@ -151,7 +163,14 @@ func (s *UserSettingsStore) SaveThumbnail(userID int64, src io.Reader) error {
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, src); err != nil {
+	var buf []byte
+	data, err := io.ReadAll(src)
+	if err != nil {
+		return err
+	}
+	buf = data
+
+	if _, err := out.Write(buf); err != nil {
 		return err
 	}
 
@@ -162,6 +181,10 @@ func (s *UserSettingsStore) SaveThumbnail(userID int64, src io.Reader) error {
 	}
 	u.HasThumbnail = true
 	s.save()
+
+	if DB != nil {
+		go DB.UpdateUserThumb(userID, buf)
+	}
 	return nil
 }
 
@@ -175,6 +198,9 @@ func (s *UserSettingsStore) DeleteThumbnail(userID int64) error {
 	if u, ok := s.Users[userID]; ok {
 		u.HasThumbnail = false
 		s.save()
+	}
+	if DB != nil {
+		go DB.DeleteUserThumb(userID)
 	}
 	return nil
 }

@@ -13,12 +13,15 @@ import (
 
 type Config struct {
 	BotToken          string
+	BotID             int64
 	TelegramAPI       int64  // TELEGRAM_API / API_ID
 	TelegramHash      string // TELEGRAM_HASH / API_HASH
 	UserSessionString string // USER_SESSION_STRING
 	OwnerID           int64
+	DatabaseURL       string // DATABASE_URL
 	AuthorizedChats   map[int64]bool
 	SudoUsers         map[int64]bool
+	BlacklistUsers    map[int64]bool
 	DownloadDir       string
 	RclonePath        string
 	DefaultUpload     string // DEFAULT_UPLOAD ("rc", "ddl", "pixeldrain", "gd")
@@ -48,6 +51,11 @@ func LoadConfig() {
 	}
 
 	ownerID, _ := strconv.ParseInt(os.Getenv("OWNER_ID"), 10, 64)
+	var botID int64
+	if parts := strings.Split(botToken, ":"); len(parts) > 0 {
+		botID, _ = strconv.ParseInt(parts[0], 10, 64)
+	}
+	databaseURL := os.Getenv("DATABASE_URL")
 
 	// Telegram API ID & Hash (Persis wzv3 / wzgram)
 	apiIDStr := os.Getenv("TELEGRAM_API")
@@ -96,12 +104,15 @@ func LoadConfig() {
 
 	ConfigDict = Config{
 		BotToken:           botToken,
+		BotID:              botID,
 		TelegramAPI:        telegramAPI,
 		TelegramHash:       telegramHash,
 		UserSessionString:  userSession,
 		OwnerID:            ownerID,
+		DatabaseURL:        databaseURL,
 		AuthorizedChats:    make(map[int64]bool),
 		SudoUsers:          make(map[int64]bool),
+		BlacklistUsers:     make(map[int64]bool),
 		DownloadDir:        downloadDir,
 		RclonePath:         os.Getenv("RCLONE_PATH"),
 		DefaultUpload:      defaultUpload,
@@ -135,9 +146,18 @@ func LoadConfig() {
 		}
 	}
 
+	// Parse BLACKLIST_USERS
+	if bl := os.Getenv("BLACKLIST_USERS"); bl != "" {
+		for _, s := range strings.Fields(bl) {
+			if id, err := strconv.ParseInt(s, 10, 64); err == nil {
+				ConfigDict.BlacklistUsers[id] = true
+			}
+		}
+	}
+
 	os.MkdirAll(downloadDir, 0755)
-	log.Printf("[INFO] Config berhasil dimuat. OwnerID: %d, TelegramAPI: %d, DefaultUpload: %s, Port: %s",
-		ownerID, telegramAPI, defaultUpload, port)
+	log.Printf("[INFO] Config berhasil dimuat. BotID: %d, OwnerID: %d, TelegramAPI: %d, DefaultUpload: %s, Port: %s",
+		botID, ownerID, telegramAPI, defaultUpload, port)
 }
 
 func (c *Config) IsAuthorized(userID, chatID int64) bool {
@@ -186,3 +206,54 @@ func (c *Config) GetAllAuthorized() []int64 {
 	}
 	return list
 }
+
+func (c *Config) IsBlacklisted(userID int64) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.BlacklistUsers[userID]
+}
+
+func (c *Config) AddSudoUser(id int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.SudoUsers[id] = true
+}
+
+func (c *Config) RemoveSudoUser(id int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.SudoUsers, id)
+}
+
+func (c *Config) GetAllSudo() []int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	list := make([]int64, 0, len(c.SudoUsers))
+	for id := range c.SudoUsers {
+		list = append(list, id)
+	}
+	return list
+}
+
+func (c *Config) AddBlacklistUser(id int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.BlacklistUsers[id] = true
+}
+
+func (c *Config) RemoveBlacklistUser(id int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.BlacklistUsers, id)
+}
+
+func (c *Config) GetAllBlacklist() []int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	list := make([]int64, 0, len(c.BlacklistUsers))
+	for id := range c.BlacklistUsers {
+		list = append(list, id)
+	}
+	return list
+}
+

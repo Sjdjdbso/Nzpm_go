@@ -91,7 +91,8 @@ func InitClone(b *tele.Bot) {
 		statusMsg, _ := c.Bot().Send(c.Recipient(), fmt.Sprintf("♻️ <b>Memulai Cloud Clone...</b>\n\n➲ <b>Src:</b> <code>%s</code>\n➲ <b>Dst:</b> <code>%s</code>", src, dst), &tele.SendOptions{ParseMode: tele.ModeHTML})
 
 		go func() {
-			err := upload_utils.RcloneClone(src, dst)
+			confPath := upload_utils.GetUserRcloneConf(c.Sender().ID)
+			err := upload_utils.RcloneClone(src, dst, confPath, nil)
 			if err != nil {
 				c.Bot().Edit(statusMsg, fmt.Sprintf("❌ <b>Clone Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
 			} else {

@@ -26,6 +26,10 @@ type BotCommandsType struct {
 	AuthorizeCommand   []string
 	UnAuthorizeCommand []string
 	AuthListCommand    string
+	AddSudoCommand     string
+	RmSudoCommand      string
+	AddBlackListCommand []string
+	RmBlackListCommand  []string
 	ShellCommand       string
 	SpeedCommand       []string
 	MediaInfoCommand   []string
@@ -61,6 +65,10 @@ var BotCommands = BotCommandsType{
 	AuthorizeCommand:   []string{"/authorize", "/a", "/auth"},
 	UnAuthorizeCommand: []string{"/unauthorize", "/ua", "/unauth"},
 	AuthListCommand:    "/authlist",
+	AddSudoCommand:     "/addsudo",
+	RmSudoCommand:      "/rmsudo",
+	AddBlackListCommand: []string{"/blacklist", "/bl"},
+	RmBlackListCommand:  []string{"/rmblacklist", "/rbl"},
 	ShellCommand:       "/shell",
 	SpeedCommand:       []string{"/speedtest", "/sp"},
 	MediaInfoCommand:   []string{"/mediainfo", "/mi"},

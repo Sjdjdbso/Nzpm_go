@@ -71,7 +71,8 @@ func InitGDCount(b *tele.Bot) {
 
 		// 2. Jika Rclone path
 		statusMsg, _ := c.Bot().Send(c.Recipient(), fmt.Sprintf("🔍 <i>Menghitung isi remote <code>%s</code>...</i>", target), &tele.SendOptions{ParseMode: tele.ModeHTML})
-		out, err := upload_utils.RcloneCount(target)
+		confPath := upload_utils.GetUserRcloneConf(c.Sender().ID)
+		out, err := upload_utils.RcloneCount(target, confPath)
 		if err != nil {
 			_, err = c.Bot().Edit(statusMsg, fmt.Sprintf("❌ <b>Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
 			return err

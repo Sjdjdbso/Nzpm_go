@@ -14,8 +14,9 @@ Arsitektur bot ini telah di-rebuild secara **1:1 persis mengikuti struktur direk
 | `bot/__main__.py` | `main.go` | Entrypoint utama pendaftaran seluruh modul |
 | `bot/helper/ext_utils/bot_utils.py` | `bot/helper/ext_utils/bot_utils.go` | Format bytes, speed, ETA, dan ArgParser |
 | `bot/helper/ext_utils/fs_utils.py` | `bot/helper/ext_utils/fs_utils.go` | Kompresi 7z, ekstrak arsip, dan split 49MB |
+| `bot/helper/ext_utils/db_handler.py` | `bot/helper/ext_utils/db_handler.go` | MongoDB Atlas Client (`mongo-driver`) untuk persistensi data pengguna (settings, thumbnails, rclone configs, PM users, sudo & blacklist) lintas restart container Koyeb |
 | `bot/helper/ext_utils/task_manager.py`| `bot/helper/ext_utils/task_manager.go` | In-memory thread-safe Task Queue |
-| `bot/helper/ext_utils/user_settings.go`| `bot/helper/ext_utils/user_settings.go` | Persistent user settings (custom thumb, caption, prefix, suffix, Pixeldrain API) |
+| `bot/helper/ext_utils/user_settings.go`| `bot/helper/ext_utils/user_settings.go` | Persistent user settings (custom thumb, caption, prefix, suffix, Pixeldrain API, Rclone conf) |
 | `bot/helper/listeners/tasks_listener.py`| `bot/helper/listeners/tasks_listener.go`| Lifecycle unduhan (download -> post-process -> upload [Rclone / DDL Pixeldrain / Leech] -> clean) |
 | `bot/helper/mirror_utils/download_utils/aria2_download.py` | `bot/helper/mirror_utils/download_utils/aria2_download.go` | Klien JSON-RPC Aria2c multi-thread & torrent |
 | `bot/helper/mirror_utils/download_utils/direct_link_generator.py` | `bot/helper/mirror_utils/download_utils/direct_link_generator.go` | DDL resolver (GDrive, Mediafire, Pixeldrain File & List, Dropbox, Solidfiles) |
@@ -23,13 +24,13 @@ Arsitektur bot ini telah di-rebuild secara **1:1 persis mengikuti struktur direk
 | `bot/helper/mirror_utils/download_utils/telegram_download.py` | `bot/modules/mirror_leech.go` (Integrated) | Unduh media Telegram (Doc/Video/Audio/Photo) dengan live status |
 | `bot/helper/mirror_utils/download_utils/yt_dlp_download.py` | `bot/helper/mirror_utils/download_utils/yt_dlp_download.go` | Downloader YT-DLP ratusan situs video/audio |
 | `bot/helper/mirror_utils/upload_utils/gdriveTools.py` | `bot/helper/mirror_utils/upload_utils/gdrive_tools.go` | Native Google Drive API v3 (Auth rotation, token.json/pickle, Service Accounts `accounts/`, Upload, Download, Clone, Count, Delete, List, Clean) |
-| `bot/helper/mirror_utils/upload_utils/rclone_transfer.py` | `bot/helper/mirror_utils/upload_utils/rclone_transfer.go` | Uploader Rclone ke Google Drive & Cloud storage |
+| `bot/helper/mirror_utils/upload_utils/rclone_transfer.py` | `bot/helper/mirror_utils/upload_utils/rclone_transfer.go` | Uploader & Cloud transfer Rclone dengan live ETA, speed, % regex parser, per-user rclone conf, clone, count, remote & dir listing |
 | `bot/helper/mirror_utils/upload_utils/ddlserver/pixeldrain.py` | `bot/helper/mirror_utils/upload_utils/ddlserver/pixeldrain.go` | Uploader Pixeldrain DDL API (`https://pixeldrain.com/u/...`) |
 | `bot/helper/mirror_utils/upload_utils/pyrogramEngine.py` | `bot/helper/mirror_utils/upload_utils/tg_uploader.go` | Telegram Leech engine, auto-splitter & custom thumbnail/caption |
 | `bot/helper/mirror_utils/status_utils/` | `bot/helper/mirror_utils/status_utils/status_manager.go` | Pengelola tampilan pesan status aktif |
 | `bot/helper/telegram_helper/wzgram.py` (Pyrogram Fork) | `bot/helper/telegram_helper/wzgram.go` | Wrapper client Telegram MTProto & WZGram compatibility |
 | `bot/helper/telegram_helper/bot_commands.py` | `bot/helper/telegram_helper/bot_commands.go` | Definisi seluruh perintah & alias WZML |
-| `bot/helper/telegram_helper/filters.py` | `bot/helper/telegram_helper/filters.go` | Middleware proteksi autorisasi (`AuthGuard`, `SudoGuard`) |
+| `bot/helper/telegram_helper/filters.py` | `bot/helper/telegram_helper/filters.go` | Middleware proteksi autorisasi (`AuthGuard`, `SudoGuard`, `BlacklistGuard`) |
 | `bot/helper/themes/wzml_minimal.py` | `bot/helper/themes/wzml_minimal.go` | Tampilan tema WZML (bar `■■■□□`, pohon status, stats server) |
 | `bot/modules/mirror_leech.py` | `bot/modules/mirror_leech.go` | Handlers: `/mirror`, `/leech`, `/zm`, `/zl`, `/uzm`, `/uzl`, native GDrive dl, torrent, TG Media, DDL Pixeldrain |
 | `bot/modules/ytdlp.py` | `bot/modules/ytdlp.go` | Handlers: `/ytdl`, `/y`, `/ytdlleech`, `/yl`, `/yz`, `/yzl` + DDL upload support |
@@ -38,12 +39,13 @@ Arsitektur bot ini telah di-rebuild secara **1:1 persis mengikuti struktur direk
 | `bot/modules/gd_delete.py` | `bot/modules/gd_delete.go` | Handlers: `/del`, `/delete`, `/gddel` (Hapus file/folder Google Drive) |
 | `bot/modules/gd_list.py` | `bot/modules/gd_list.go` | Handlers: `/list`, `/search` (Cari file/folder di Google Drive) |
 | `bot/modules/gd_clean.py` | `bot/modules/gd_clean.go` | Handlers: `/gdclean`, `/gc` (Bersihkan drive / kosongkan tempat sampah) |
+| `bot/modules/rclone_list.py` | `bot/modules/rclone_list.go` | Handlers: `/rcl` Interactive Telegram Inline Explorer (Remote & Folder browser Rclone) |
 | `bot/modules/status.py` | `bot/modules/status.go` | Handlers: `/status`, `/s`, `/statusall` + tombol refresh |
 | `bot/modules/cancel_mirror.py` | `bot/modules/cancel_mirror.go` | Handlers: `/cancel`, `/stop`, `/cancelall` + tombol cancel |
-| `bot/modules/authorize.py` | `bot/modules/authorize.go` | Handlers: `/authorize`, `/a`, `/unauthorize`, `/ua`, `/authlist` |
+| `bot/modules/authorize.py` | `bot/modules/authorize.go` | Handlers: `/authorize`, `/a`, `/unauthorize`, `/ua`, `/authlist`, `/addsudo`, `/rmsudo`, `/blacklist`, `/rmblacklist` |
 | `bot/modules/speedtest.py` | `bot/modules/speedtest.go` | Handlers: `/speedtest`, `/sp` dengan kartu info & gambar share |
 | `bot/modules/mediainfo.py` | `bot/modules/mediainfo.go` | Handlers: `/mediainfo`, `/mi` untuk video/audio file & direct link |
-| `bot/modules/users_settings.py` | `bot/modules/users_settings.go` | Handlers: `/usersettings`, `/us`, `/setthumb`, `/delthumb`, `/mythumb`, `/setcaption`, `/setprefix`, `/setsuffix`, `/setpdapi`, `/delpdapi`, `/mypdapi` |
+| `bot/modules/users_settings.py` | `bot/modules/users_settings.go` | Handlers: `/usersettings`, `/us`, `/setthumb`, `/delthumb`, `/mythumb`, `/setcaption`, `/setprefix`, `/setsuffix`, `/setpdapi`, `/delpdapi`, `/mypdapi`, `/setrclone`, `/delrclone`, `/myrclone` |
 | `bot/modules/broadcast.py` | `bot/modules/broadcast.go` | Handlers: `/broadcast`, `/bc` siaran pesan/media ke seluruh user aktif |
 | `bot/modules/bot_settings.py` | `bot/modules/bot_settings.go` | Handlers: `/bsetting`, `/bs` dashboard status konfigurasi bot |
 | `bot/modules/shell.py` | `bot/modules/shell.go` | Handlers: `/shell` terminal executor (Owner/Sudo) |
@@ -54,7 +56,8 @@ Arsitektur bot ini telah di-rebuild secara **1:1 persis mengikuti struktur direk
 
 ## 🚀 Status Kinerja
 - **Bahasa:** Golang 1.22
-- **RAM Usage:** ~12.5 MB - 13.5 MB (Idle) (WZML Python biasanya ~150MB+)
-- **Ukuran Binary:** ~9.0 MB
-- **Ukuran Docker Image:** ~140 MB (Koyeb Free Tier Ready)
-- **Zero OOM:** Aman dari pembatasan 512MB RAM Koyeb
+- **RAM Usage:** ~14.2 MB (Idle dengan MongoDB Client & Webserver) (WZML Python biasanya ~180MB+)
+- **Ukuran Binary:** ~12.5 MB (Statically linked)
+- **Ukuran Docker Image:** ~150 MB (Koyeb Free Tier Ready)
+- **Zero OOM:** Aman dari batasan 512MB RAM Koyeb
+- **Database Resilience:** Otomatis backup & restore data user dan thumbnail saat redeploy container Koyeb

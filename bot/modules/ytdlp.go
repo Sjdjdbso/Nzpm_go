@@ -130,7 +130,8 @@ func InitYtDlp(b *tele.Bot) {
 						c.Bot().Send(c.Recipient(), completeText, markup, &tele.SendOptions{ParseMode: tele.ModeHTML})
 					}
 				} else {
-					if err := upload_utils.RcloneTransfer(filePath, dest, nil); err != nil {
+					userConf := upload_utils.GetUserRcloneConf(c.Sender().ID)
+					if err := upload_utils.RcloneTransfer(filePath, dest, userConf, nil); err != nil {
 						c.Bot().Send(c.Recipient(), fmt.Sprintf("❌ <b>Upload Gagal:</b> %v", err), &tele.SendOptions{ParseMode: tele.ModeHTML})
 					} else {
 						if dest == "" {
